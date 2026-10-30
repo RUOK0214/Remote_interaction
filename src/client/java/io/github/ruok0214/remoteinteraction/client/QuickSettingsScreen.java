@@ -7,19 +7,18 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import java.util.*;
 
-/** Receiver-first assignment; slot checkboxes wrap to fit the current screen. */
+/** Receiver-first assignment with one compact row of numbered slot checkboxes. */
 public final class QuickSettingsScreen extends Screen {
+    private static final int ROW_HEIGHT=50;
     private final Screen parent;
-    private int page, rows, columns, rowHeight;
+    private int page, rows;
     private String query="";
     private EditBox search;
     private List<RemotePayloads.Entry> visible=List.of();
     public QuickSettingsScreen(Screen parent) { super(RemoteScreen.tr("slots.title")); this.parent=parent; }
     @Override protected void init() {
         int w=Math.min(480,width-24), x=(width-w)/2;
-        columns=Math.max(1,Math.min(8,(w-8)/40));
-        rowHeight=24+((Receiver.SLOT_COUNT+columns-1)/columns)*22;
-        rows=Math.max(1,(height-138)/rowHeight);
+        rows=Math.max(1,(height-138)/ROW_HEIGHT);
         search=addRenderableWidget(new EditBox(font,x,48,w,20,RemoteScreen.tr("search")));
         search.setMaxLength(64); search.setValue(query); search.setHint(RemoteScreen.tr("search"));
         search.setResponder(v->{query=v;page=0;updated();}); updated(); RemoteClient.send(RemotePayloads.Request.list());
@@ -28,6 +27,7 @@ public final class QuickSettingsScreen extends Screen {
         String needle=query.toLowerCase(Locale.ROOT);
         return RemoteClient.entries().stream().filter(e->(RemoteScreen.label(e).getString()+" "+e.pos().toShortString()).toLowerCase(Locale.ROOT).contains(needle)).toList();
     }
+    private int slotSpacing(int panelWidth){return Math.min(24,(panelWidth-8)/Receiver.SLOT_COUNT);}
     public void updated() {
         if(search==null)return;
         for(var child:List.copyOf(children()))if(child!=search)removeWidget(child);
@@ -35,15 +35,19 @@ public final class QuickSettingsScreen extends Screen {
         var entries=filtered(); int pages=Math.max(1,(entries.size()+rows-1)/rows); page=Math.clamp(page,0,pages-1);
         visible=entries.subList(Math.min(page*rows,entries.size()),Math.min((page+1)*rows,entries.size()));
         for(int row=0;row<visible.size();row++) {
-            var e=visible.get(row); int y=76+row*rowHeight;
+            var e=visible.get(row); int y=76+row*ROW_HEIGHT;
             for(int index=0;index<Receiver.SLOT_COUNT;index++) {
                 final int slot=index;
-                var box=addRenderableWidget(Checkbox.builder(Component.literal(Integer.toString(slot+1)),font)
-                        .pos(x+4+(slot%columns)*(w-8)/columns,y+16+(slot/columns)*22).selected(e.slots().contains(slot))
-                        .tooltip(Tooltip.create(RemoteScreen.tr("slots.assignment",RemoteScreen.label(e),slot+1)))
+                var description=RemoteScreen.tr("slots.assignment",RemoteScreen.label(e),slot+1);
+                var box=addRenderableWidget(Checkbox.builder(Component.empty(),font)
+                        .pos(x+4+slot*slotSpacing(w),y+25).selected(e.slots().contains(slot))
+                        .tooltip(Tooltip.create(description))
                         .onValueChange((checkbox,checked)->{
                             RemoteClient.send(new RemotePayloads.SetSlot(e.id(),slot,checked)); checkbox.active=false;
                         }).build());
+                // Numbers are drawn above the boxes. Keep a full spoken label without a side label.
+                box.setMessage(description);
+                box.setSize(Checkbox.getBoxSize(font),Checkbox.getBoxSize(font));
                 box.active=RemoteClient.available();
             }
         }
@@ -59,10 +63,12 @@ public final class QuickSettingsScreen extends Screen {
         g.centeredText(font,RemoteScreen.tr("slots.hint"),width/2,30,0xFFB8C7D9);
         int w=Math.min(480,width-24),left=(width-w)/2;
         for(int i=0;i<visible.size();i++) {
-            var e=visible.get(i); int top=76+i*rowHeight;
+            var e=visible.get(i); int top=76+i*ROW_HEIGHT;
             String detail=RemoteScreen.label(e).getString()+" · "+e.pos().toShortString();
             g.text(font,font.plainSubstrByWidth(detail,w-8),left+4,top,0xFFDAEAE8);
-            g.horizontalLine(left,left+w,top+rowHeight-5,0xFF46575F);
+            for(int slot=0;slot<Receiver.SLOT_COUNT;slot++)
+                g.centeredText(font,Integer.toString(slot+1),left+4+slot*slotSpacing(w)+Checkbox.getBoxSize(font)/2,top+14,0xFFDAEAE8);
+            g.horizontalLine(left,left+w,top+ROW_HEIGHT-5,0xFF46575F);
             if(x>=left&&x<left+w&&y>=top&&y<top+14)g.setTooltipForNextFrame(font,Component.literal(detail+" · "+e.dimension()),x,y);
         }
         int total=filtered().size(),pages=Math.max(1,(total+rows-1)/rows);

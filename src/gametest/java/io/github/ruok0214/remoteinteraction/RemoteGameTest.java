@@ -265,10 +265,11 @@ public final class RemoteGameTest implements FabricClientGameTest {
             c.takeScreenshot("receiver-slot-checkboxes-ko");editLayout(c);
             world.getServer().runOnServer(s->check(!s.overworld().getBlockState(LEVER).getValue(BlockStateProperties.POWERED),"Layout preview never activates receivers"));
             c.getInput().resizeWindow(854,480);c.waitTicks(3);c.takeScreenshot("receiver-slots-small-ko");
-            c.runOnClient(mc->check(mc.gui.screen().children().stream().filter(Checkbox.class::isInstance).count()==15,"Small screen paginates receiver rows"));
-            c.clickScreenButton("remote_interaction.next");c.clickScreenButton("remote_interaction.next");c.runOnClient(mc->check(mc.gui.screen().children().stream().filter(Checkbox.class::isInstance).count()==15,"Last receiver remains accessible on the next page"));
+            c.runOnClient(mc->check(mc.gui.screen().children().stream().filter(Checkbox.class::isInstance).count()==30,"Small screen fits two compact receiver rows"));
+            c.clickScreenButton("remote_interaction.next");c.runOnClient(mc->check(mc.gui.screen().children().stream().filter(Checkbox.class::isInstance).count()==15,"Last receiver remains accessible on the next page"));
             c.clickScreenButton("remote_interaction.previous");
-            c.clickScreenButton("remote_interaction.previous");c.getInput().resizeWindow(1000,700);c.waitTicks(3);
+            c.getInput().resizeWindow(640,480);c.waitTicks(3);clickSlot(c,leverId,14);clickSlot(c,leverId,14);c.takeScreenshot("receiver-slots-narrow-ko");
+            c.getInput().resizeWindow(1000,700);c.waitTicks(3);
             c.clickScreenButton("gui.done");c.clickScreenButton("gui.done");
             world.getServer().runCommand("tp @a 6.5 81 4.5");world.getConnection().waitForClientboundPackets();
             modifiers(c,quickMods,true);c.getInput().holdKey(GLFW.GLFW_KEY_R);c.waitForScreen(QuickScreen.class);
