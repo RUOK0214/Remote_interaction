@@ -83,6 +83,50 @@ public final class RemoteGameTest implements FabricClientGameTest {
             check(bounded.x()>=8&&bounded.y()>=8&&bounded.right()<=312&&bounded.bottom()<=232,"Oversized saved layout stays inside small screens");
         });
     }
+    private static void markerSlider(ClientGameTestContext c,MarkerSettingsScreen.Control control,double value){
+        var p=c.computeOnClient(mc->{
+            var slider=mc.gui.screen().children().stream().filter(MarkerSettingsScreen.SettingSlider.class::isInstance)
+                    .map(MarkerSettingsScreen.SettingSlider.class::cast).filter(s->s.control()==control).findFirst().orElseThrow();
+            return new double[]{slider.getX()+4+value*(slider.getWidth()-8),slider.getY()+10};
+        });
+        cursor(c,p[0],p[1]);c.getInput().pressMouse(GLFW.GLFW_MOUSE_BUTTON_LEFT);c.waitTick();
+    }
+    private static void configureMarkers(ClientGameTestContext c,TestSingleplayerContext world){
+        c.runOnClient(mc->{
+            check(RemoteClient.markerSettings().get().equals(MarkerAppearance.DEFAULT),"Marker settings start at defaults");
+            var boxes=RemoteClient.extractMarkers();
+            check(boxes.size()==3,"Only nearby registered receiver blocks are marked");
+            for(var pos:List.of(LEVER,BUTTON,HIDDEN))check(boxes.contains(new net.minecraft.world.phys.AABB(pos).inflate(.002)),"Marker covers the whole grid cell: "+pos);
+        });
+        menu(c);c.clickScreenButton("remote_interaction.markers.title");c.waitForScreen(MarkerSettingsScreen.class);
+        c.clickScreenButton("#FF7061");
+        c.runOnClient(mc->check(RemoteClient.markerSettings().current().color()==0xFF7061,"Palette changes preview color"));
+        markerSlider(c,MarkerSettingsScreen.Control.RED,.2);markerSlider(c,MarkerSettingsScreen.Control.GREEN,.6);markerSlider(c,MarkerSettingsScreen.Control.BLUE,1);
+        markerSlider(c,MarkerSettingsScreen.Control.TRANSPARENCY,.5);markerSlider(c,MarkerSettingsScreen.Control.WIDTH,.7);
+        c.runOnClient(mc->{var draft=RemoteClient.markerSettings().current();
+            check(draft.color()==0x3399FF&&draft.transparency()==50&&draft.lineWidth()==4.5f,"All five sliders update the preview");
+            check(draft.style().stroke()==0x803399FF&&draft.style().strokeWidth()==4.5f,"ARGB alpha and thickness reach the world renderer");
+            check(RemoteClient.markerSettings().get().equals(MarkerAppearance.DEFAULT),"Preview has not replaced saved settings");
+        });
+        c.takeScreenshot("marker-settings-ko");c.getInput().resizeWindow(854,480);c.waitTicks(3);c.takeScreenshot("marker-settings-small-ko");
+        c.clickScreenButton("remote_interaction.save");
+        c.runOnClient(mc->check(MarkerSettings.load().get().equals(RemoteClient.markerSettings().get()),"Marker appearance persists to disk"));
+        c.clickScreenButton("remote_interaction.markers.title");c.clickScreenButton("remote_interaction.markers.reset");
+        c.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
+        c.runOnClient(mc->check(RemoteClient.markerSettings().current().color()==0x3399FF,"Escape discards default-style preview"));
+        c.clickScreenButton("remote_interaction.markers.title");markerSlider(c,MarkerSettingsScreen.Control.TRANSPARENCY,1);
+        c.runOnClient(mc->check((RemoteClient.markerSettings().current().argb()>>>24)==0,"100 percent transparency has zero alpha"));
+        c.clickScreenButton("gui.cancel");c.clickScreenButton("gui.done");
+        world.getServer().runCommand("tp @a 6.5 81 4.5");world.getConnection().waitForClientboundPackets();aim(c,LEVER,.4);
+        c.waitTicks(3);c.takeScreenshot("cube-markers-half-transparent-ko");
+        menu(c);c.clickScreenButton("remote_interaction.markers.title");c.clickScreenButton("remote_interaction.markers.reset");c.clickScreenButton("remote_interaction.save");c.clickScreenButton("gui.done");
+        c.waitTicks(3);c.takeScreenshot("cube-markers-default-ko");
+        c.runOnClient(mc->{
+            check(MarkerSettings.load().get().equals(MarkerAppearance.DEFAULT),"Default style can be saved");
+            var bounded=new MarkerAppearance(-1,200,20);check(bounded.transparency()==100&&bounded.lineWidth()==6,"Out-of-range marker settings are bounded");
+        });
+        c.getInput().resizeWindow(1000,700);c.waitTicks(3);
+    }
     private static void supportedTargets(net.minecraft.server.MinecraftServer server){
         var p=server.getPlayerList().getPlayers().getFirst();var level=p.level();var data=ReceiverData.get(server);var pos=new BlockPos(5,81,0);
         for(var block:List.of(Blocks.OAK_DOOR,Blocks.OAK_TRAPDOOR,Blocks.OAK_FENCE_GATE,Blocks.REPEATER,Blocks.COMPARATOR,Blocks.NOTE_BLOCK,Blocks.DAYLIGHT_DETECTOR,Blocks.BELL)){
@@ -133,6 +177,7 @@ public final class RemoteGameTest implements FabricClientGameTest {
             world.getServer().runOnServer(s->{var p=s.getPlayerList().getPlayers().getFirst();check(p.getMainHandItem().getCount()==12,"Held items are not consumed by attachment");
                 var r=new Receiver(UUID.randomUUID(),p.getUUID(),p.level().dimension().identifier(),HIDDEN,Direction.UP,BuiltInRegistries.BLOCK.getKey(Blocks.LEVER),"숨긴 수신기",false,false);ReceiverData.get(s).add(r);RemoteService.sync(p,"");});
             hiddenId=id(world,HIDDEN);c.waitFor(mc->RemoteClient.entries().size()==3);
+            configureMarkers(c,world);
             menu(c);c.clickScreenButton("remote_interaction.slots.title");c.waitForScreen(QuickSettingsScreen.class);
             c.runOnClient(mc->check(mc.gui.screen().children().stream().filter(Checkbox.class::isInstance).count()==27,"Each receiver exposes nine slot checkboxes"));
             clickSlot(c,leverId,0);clickSlot(c,buttonId,0);clickSlot(c,leverId,1);clickSlot(c,leverId,8);clickSlot(c,leverId,8);
@@ -194,6 +239,8 @@ public final class RemoteGameTest implements FabricClientGameTest {
             });
             c.waitTicks(5);menu(c);c.takeScreenshot("mod-panel-small-ko");c.clickScreenButton("remote_interaction.help");c.takeScreenshot("help-small-ko");c.clickScreenButton("gui.done");
             world.getServer().runCommand("setblock 2 81 0 minecraft:air");world.getServer().runCommand("setblock 2 81 0 minecraft:stone_button[face=floor]");c.waitTicks(15);
+            c.waitFor(mc->RemoteClient.entries().stream().filter(e->e.id().equals(buttonId)).findFirst().orElseThrow().status().equals("missing"));
+            c.runOnClient(mc->check(!RemoteClient.extractMarkers().contains(new net.minecraft.world.phys.AABB(BUTTON).inflate(.002)),"Replaced receiver blocks lose their cube marker"));
             world.getServer().runOnServer(s->{var p=s.getPlayerList().getPlayers().getFirst();check(ReceiverData.get(s).get(buttonId).lost(),"Replaced block does not relink");
                 RemoteService.forget(p.getUUID());RemoteService.request(p,new RemotePayloads.Request(RemotePayloads.Action.REMOVE,buttonId,""));
                 check(p.getMainHandItem().getCount()==12,"Itemless removal never changes inventory");});

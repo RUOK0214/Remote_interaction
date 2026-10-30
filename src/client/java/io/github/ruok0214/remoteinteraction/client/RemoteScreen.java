@@ -65,11 +65,12 @@ public final class RemoteScreen extends Screen {
         prev.active = page > 0;
         var next = addRenderableWidget(Button.builder(Component.literal(">"), b -> { page++; rebuildRows(); }).bounds(left+panelWidth-38, nav, 28, 20).build());
         next.active = page+1 < pages;
-        int tools = top+panelHeight-54, toolWidth=(panelWidth-28)/3;
+        int tools = top+panelHeight-54, toolWidth=(panelWidth-32)/4;
         var attach=addRenderableWidget(Button.builder(tr("attach"),b->RemoteClient.startPlacing()).bounds(left+10,tools,toolWidth,20).build());
         attach.active=RemoteClient.available();
         addRenderableWidget(Button.builder(tr("keys.title"),b->minecraft.gui.setScreen(new KeySettingsScreen(this))).bounds(left+14+toolWidth,tools,toolWidth,20).build());
         addRenderableWidget(Button.builder(tr("slots.title"),b->minecraft.gui.setScreen(new QuickSettingsScreen(this))).bounds(left+18+2*toolWidth,tools,toolWidth,20).build());
+        addRenderableWidget(Button.builder(tr("markers.title"),b->minecraft.gui.setScreen(new MarkerSettingsScreen(this))).bounds(left+22+3*toolWidth,tools,toolWidth,20).build());
         int footer = top + panelHeight - 28, gap = 4, w = (panelWidth - 32) / 4;
         var rename = addRenderableWidget(Button.builder(tr("rename"), b -> minecraft.gui.setScreen(new RenameScreen(this, selection())))
                 .bounds(left+10, footer, w, 20).build());

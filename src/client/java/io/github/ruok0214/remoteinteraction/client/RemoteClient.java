@@ -22,10 +22,12 @@ public final class RemoteClient implements ClientModInitializer {
     private static boolean placing;
     private static ShortcutSettings shortcuts;
     private static QuickLayoutSettings layout;
+    private static MarkerSettings markerSettings;
     private static int ticks;
     public static List<RemotePayloads.Entry> entries() { return entries; }
     public static ShortcutSettings shortcuts() { return shortcuts; }
     public static QuickLayoutSettings layout() { return layout; }
+    public static MarkerSettings markerSettings() { return markerSettings; }
     public static boolean available() { return Minecraft.getInstance().player != null && ClientPlayNetworking.canSend(RemotePayloads.Attach.TYPE); }
     public static void send(CustomPacketPayload request) { if (available()) ClientPlayNetworking.send(request); }
     public static boolean placing() { return placing; }
@@ -47,6 +49,7 @@ public final class RemoteClient implements ClientModInitializer {
     @Override public void onInitializeClient() {
         shortcuts = ShortcutSettings.load();
         layout = QuickLayoutSettings.load();
+        markerSettings = MarkerSettings.load();
         ClientPlayNetworking.registerGlobalReceiver(RemotePayloads.Snapshot.TYPE, (payload, context) -> {
             entries = payload.entries();
             if (context.client().gui.screen() instanceof RemoteScreen screen) screen.updated(payload.message());
@@ -67,14 +70,16 @@ public final class RemoteClient implements ClientModInitializer {
                 requested = false;
                 if (client.player != null) client.gui.setScreen(new RemoteScreen(null));
             }
-            // Only poll while the panel is open, or periodically for the small world markers.
+            // Poll open panels and periodically refresh world markers.
             boolean open = client.gui.screen() instanceof RemoteScreen || client.gui.screen() instanceof QuickScreen || client.gui.screen() instanceof QuickSettingsScreen || client.gui.screen() instanceof QuickLayoutScreen;
             if (++ticks % (open ? 10 : 100) == 0) send(RemotePayloads.Request.list());
         });
         LevelExtractionEvents.END_EXTRACTION.register(context -> markers = extractMarkers());
         LevelRenderEvents.BEFORE_GIZMOS.register(context -> {
+            var appearance=markerSettings.current();
+            if(appearance.transparency()==100)return;
             try (var ignored = context.levelRenderer().collectPerFrameRenderThreadGizmos()) {
-                for (var box : markers) Gizmos.cuboid(box, GizmoStyle.stroke(0xFF43E7D4, 2.5f));
+                for (var box : markers) Gizmos.cuboid(box, appearance.style());
             }
         });
     }
@@ -87,23 +92,9 @@ public final class RemoteClient implements ClientModInitializer {
                     || !mc.level.hasChunkAt(e.pos()) || e.pos().distToCenterSqr(mc.player.position()) > 64 * 64) continue;
             var state = mc.level.getBlockState(e.pos());
             if (!BuiltInRegistries.BLOCK.getKey(state.getBlock()).equals(e.block())) continue;
-            var shape = state.getShape(mc.level, e.pos());
-            if (shape.isEmpty()) continue;
-            var bounds = shape.bounds();
-            var center = bounds.getCenter();
-            double x = center.x, y = center.y, z = center.z;
-            switch (e.face()) {
-                case UP -> y = bounds.maxY + .015;
-                case DOWN -> y = bounds.minY - .015;
-                case EAST -> x = bounds.maxX + .015;
-                case WEST -> x = bounds.minX - .015;
-                case SOUTH -> z = bounds.maxZ + .015;
-                case NORTH -> z = bounds.minZ - .015;
-            }
-            double dx = e.face().getStepX() == 0 ? .075 : .025;
-            double dy = e.face().getStepY() == 0 ? .075 : .025;
-            double dz = e.face().getStepZ() == 0 ? .075 : .025;
-            result.add(new AABB(x-dx, y-dy, z-dz, x+dx, y+dy, z+dz).move(e.pos()));
+            // Use the grid cell, independent of the target's collision shape, facing, or powered state.
+            // A tiny expansion prevents coincident surfaces from flickering on full blocks.
+            result.add(new AABB(e.pos()).inflate(.002));
         }
         return List.copyOf(result);
     }
