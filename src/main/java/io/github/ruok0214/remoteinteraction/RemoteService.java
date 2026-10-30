@@ -60,7 +60,12 @@ public final class RemoteService {
             if (!state.is(door) || !player.mayInteract(level, pos) || !level.mayInteract(player, pos)) { tell(player, "denied"); return; }
         }
         var data = ReceiverData.get(level.getServer());
-        if (data.at(level.dimension().identifier(), pos) != null) { tell(player, "already_attached"); return; }
+        var existing = data.at(level.dimension().identifier(), pos);
+        if (existing != null) {
+            if (!existing.owner().equals(player.getUUID())) { tell(player, "denied"); return; }
+            data.remove(existing.id());
+            sync(player, "removed"); tell(player, "removed"); return;
+        }
         var receiver = new Receiver(UUID.randomUUID(), player.getUUID(), level.dimension().identifier(), pos.immutable(),
                 hit.getDirection(), BuiltInRegistries.BLOCK.getKey(state.getBlock()), "", false, false);
         if (!data.add(receiver)) { tell(player, "limit"); return; }

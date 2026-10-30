@@ -7,17 +7,19 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import java.util.*;
 
-/** Receiver-first assignment: every row exposes all nine slot memberships. */
+/** Receiver-first assignment; slot checkboxes wrap to fit the current screen. */
 public final class QuickSettingsScreen extends Screen {
     private final Screen parent;
-    private int page, rows;
+    private int page, rows, columns, rowHeight;
     private String query="";
     private EditBox search;
     private List<RemotePayloads.Entry> visible=List.of();
     public QuickSettingsScreen(Screen parent) { super(RemoteScreen.tr("slots.title")); this.parent=parent; }
     @Override protected void init() {
         int w=Math.min(480,width-24), x=(width-w)/2;
-        rows=Math.max(1,(height-138)/48);
+        columns=Math.max(1,Math.min(8,(w-8)/40));
+        rowHeight=24+((Receiver.SLOT_COUNT+columns-1)/columns)*22;
+        rows=Math.max(1,(height-138)/rowHeight);
         search=addRenderableWidget(new EditBox(font,x,48,w,20,RemoteScreen.tr("search")));
         search.setMaxLength(64); search.setValue(query); search.setHint(RemoteScreen.tr("search"));
         search.setResponder(v->{query=v;page=0;updated();}); updated(); RemoteClient.send(RemotePayloads.Request.list());
@@ -33,11 +35,11 @@ public final class QuickSettingsScreen extends Screen {
         var entries=filtered(); int pages=Math.max(1,(entries.size()+rows-1)/rows); page=Math.clamp(page,0,pages-1);
         visible=entries.subList(Math.min(page*rows,entries.size()),Math.min((page+1)*rows,entries.size()));
         for(int row=0;row<visible.size();row++) {
-            var e=visible.get(row); int y=76+row*48;
+            var e=visible.get(row); int y=76+row*rowHeight;
             for(int index=0;index<Receiver.SLOT_COUNT;index++) {
                 final int slot=index;
                 var box=addRenderableWidget(Checkbox.builder(Component.literal(Integer.toString(slot+1)),font)
-                        .pos(x+4+slot*(w-8)/Receiver.SLOT_COUNT,y+16).selected(e.slots().contains(slot))
+                        .pos(x+4+(slot%columns)*(w-8)/columns,y+16+(slot/columns)*22).selected(e.slots().contains(slot))
                         .tooltip(Tooltip.create(RemoteScreen.tr("slots.assignment",RemoteScreen.label(e),slot+1)))
                         .onValueChange((checkbox,checked)->{
                             RemoteClient.send(new RemotePayloads.SetSlot(e.id(),slot,checked)); checkbox.active=false;
@@ -57,10 +59,10 @@ public final class QuickSettingsScreen extends Screen {
         g.centeredText(font,RemoteScreen.tr("slots.hint"),width/2,30,0xFFB8C7D9);
         int w=Math.min(480,width-24),left=(width-w)/2;
         for(int i=0;i<visible.size();i++) {
-            var e=visible.get(i); int top=76+i*48;
+            var e=visible.get(i); int top=76+i*rowHeight;
             String detail=RemoteScreen.label(e).getString()+" · "+e.pos().toShortString();
             g.text(font,font.plainSubstrByWidth(detail,w-8),left+4,top,0xFFDAEAE8);
-            g.horizontalLine(left,left+w,top+43,0xFF46575F);
+            g.horizontalLine(left,left+w,top+rowHeight-5,0xFF46575F);
             if(x>=left&&x<left+w&&y>=top&&y<top+14)g.setTooltipForNextFrame(font,Component.literal(detail+" · "+e.dimension()),x,y);
         }
         int total=filtered().size(),pages=Math.max(1,(total+rows-1)/rows);

@@ -22,7 +22,7 @@ public final class RemotePayloads {
     public record Entry(UUID id, Identifier dimension, BlockPos pos, Direction face, Identifier block,
                         String name, String status, String state, List<Integer> slots) {}
     public record Attach(BlockPos pos) implements CustomPacketPayload {
-        public static final Type<Attach> TYPE = new Type<>(RemoteInteraction.id("attach"));
+        public static final Type<Attach> TYPE = new Type<>(RemoteInteraction.id("attach_v2"));
         public static final StreamCodec<RegistryFriendlyByteBuf, Attach> CODEC = StreamCodec.of(
                 (b, v) -> b.writeBlockPos(v.pos), b -> new Attach(b.readBlockPos()));
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
@@ -46,7 +46,7 @@ public final class RemotePayloads {
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
     public record Snapshot(List<Entry> entries, String message) implements CustomPacketPayload {
-        public static final Type<Snapshot> TYPE = new Type<>(RemoteInteraction.id("snapshot_v2"));
+        public static final Type<Snapshot> TYPE = new Type<>(RemoteInteraction.id("snapshot_v3"));
         public static final StreamCodec<RegistryFriendlyByteBuf, Snapshot> CODEC = StreamCodec.of((b, v) -> {
             b.writeUtf(v.message, 64); b.writeVarInt(v.entries.size());
             for (var e : v.entries) {

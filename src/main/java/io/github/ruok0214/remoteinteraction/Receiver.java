@@ -11,7 +11,7 @@ import java.util.*;
 public record Receiver(UUID id, UUID owner, Identifier dimension, BlockPos pos, Direction face,
                        Identifier block, String name, boolean paid, boolean lost, List<Integer> slots) {
     public static final int MAX_NAME = 32;
-    public static final int SLOT_COUNT = 9;
+    public static final int SLOT_COUNT = 15;
     public static final Codec<Receiver> CODEC = RecordCodecBuilder.create(i -> i.group(
             UUIDUtil.CODEC.fieldOf("id").forGetter(Receiver::id),
             UUIDUtil.CODEC.fieldOf("owner").forGetter(Receiver::owner),
