@@ -21,6 +21,7 @@ import java.util.*;
 public final class RemoteGameTest implements FabricClientGameTest {
     private static final BlockPos LEVER=new BlockPos(0,81,0), BUTTON=new BlockPos(2,81,0), HIDDEN=new BlockPos(4,81,0);
     private static boolean veto;
+    private static final java.util.concurrent.atomic.AtomicInteger serverUseCallbacks=new java.util.concurrent.atomic.AtomicInteger();
     private static void check(boolean condition,String message){if(!condition)throw new AssertionError(message);}
     private static void menu(ClientGameTestContext c){
         c.getInput().pressKey(GLFW.GLFW_KEY_T);c.waitForScreen(ChatScreen.class);
@@ -127,6 +128,48 @@ public final class RemoteGameTest implements FabricClientGameTest {
         });
         c.getInput().resizeWindow(1000,700);c.waitTicks(3);
     }
+    private static UUID removeAllReceivers(ClientGameTestContext c,TestSingleplayerContext world){
+        UUID foreignId=UUID.randomUUID();
+        world.getServer().runOnServer(s->{
+            var p=s.getPlayerList().getPlayers().getFirst();var data=ReceiverData.get(s);var dim=p.level().dimension().identifier();
+            var block=BuiltInRegistries.BLOCK.getKey(Blocks.LEVER);
+            data.add(new Receiver(UUID.randomUUID(),p.getUUID(),dim,new BlockPos(100000,81,100000),Direction.UP,block,"unloaded",false,false,List.of(2)));
+            data.add(new Receiver(UUID.randomUUID(),p.getUUID(),net.minecraft.world.level.Level.NETHER.identifier(),new BlockPos(0,81,0),Direction.UP,block,"other dimension",false,false,List.of(3)));
+            data.add(new Receiver(UUID.randomUUID(),p.getUUID(),dim,new BlockPos(3,81,0),Direction.UP,block,"missing",false,false,List.of(4)).missing());
+            data.add(new Receiver(foreignId,UUID.randomUUID(),dim,new BlockPos(6,81,0),Direction.UP,block,"another player",false,false,List.of(0)));
+            for(var mode:List.of(GameType.SPECTATOR,GameType.ADVENTURE)){
+                p.setGameMode(mode);RemoteService.forget(p.getUUID());RemoteService.removeAll(p);
+                check(data.owned(p.getUUID()).size()==5,"Bulk removal denied in "+mode);
+            }
+            p.setGameMode(GameType.SURVIVAL);RemoteService.forget(p.getUUID());RemoteService.sync(p,"");
+        });
+        c.waitFor(mc->RemoteClient.entries().size()==5);menu(c);
+        c.runOnClient(mc->mc.gui.screen().children().stream().filter(EditBox.class::isInstance).map(EditBox.class::cast).findFirst().orElseThrow().setValue("입구"));
+        c.takeScreenshot("remove-all-filtered-panel-ko");c.clickScreenButton("remote_interaction.remove_all");c.waitForScreen(ConfirmScreen.class);
+        c.takeScreenshot("remove-all-confirm-ko");c.clickScreenButton("gui.no");
+        world.getServer().runOnServer(s->check(ReceiverData.get(s).owned(s.getPlayerList().getPlayers().getFirst().getUUID()).size()==5,"Cancel keeps every receiver"));
+        var before=world.getServer().computeOnServer(s->List.of(s.overworld().getBlockState(LEVER),s.overworld().getBlockState(HIDDEN)));
+        c.clickScreenButton("remote_interaction.remove_all");c.clickScreenButton("gui.yes");c.waitFor(mc->RemoteClient.entries().isEmpty());
+        world.getServer().runOnServer(s->{
+            var p=s.getPlayerList().getPlayers().getFirst();var data=ReceiverData.get(s);
+            check(data.owned(p.getUUID()).isEmpty(),"Confirmed removal clears filtered, missing, unloaded and other-dimensional receivers");
+            check(data.get(foreignId)!=null&&data.get(foreignId).slots().equals(List.of(0)),"Another owner's receiver and slot are preserved");
+            check(data.at(p.level().dimension().identifier(),LEVER)==null,"Bulk removal clears target lookup too");
+            check(before.equals(List.of(s.overworld().getBlockState(LEVER),s.overworld().getBlockState(HIDDEN))),"Bulk removal preserves block states");
+            check(p.getMainHandItem().is(Items.DIAMOND)&&p.getMainHandItem().getCount()==12,"Bulk removal preserves held items");
+        });
+        c.runOnClient(mc->{
+            var clear=mc.gui.screen().children().stream().filter(Button.class::isInstance).map(Button.class::cast)
+                    .filter(b->b.getMessage().getString().equals(RemoteScreen.tr("remove_all").getString())).findFirst().orElseThrow();
+            check(!clear.active,"Remove all is disabled when empty");
+            check(RemoteClient.extractMarkers().isEmpty(),"Bulk removal clears world markers");
+        });
+        c.takeScreenshot("remove-all-empty-ko");c.clickScreenButton("gui.done");
+        modifiers(c,GLFW.GLFW_MOD_CONTROL|GLFW.GLFW_MOD_ALT,true);c.getInput().holdKey(GLFW.GLFW_KEY_R);c.waitForScreen(QuickScreen.class);
+        c.runOnClient(mc->check(mc.gui.screen().children().isEmpty(),"Bulk removal clears all quick groups"));
+        c.getInput().releaseKey(GLFW.GLFW_KEY_R);modifiers(c,GLFW.GLFW_MOD_CONTROL|GLFW.GLFW_MOD_ALT,false);c.waitTick();
+        return foreignId;
+    }
     private static void supportedTargets(net.minecraft.server.MinecraftServer server){
         var p=server.getPlayerList().getPlayers().getFirst();var level=p.level();var data=ReceiverData.get(server);var pos=new BlockPos(5,81,0);
         for(var block:List.of(Blocks.OAK_DOOR,Blocks.OAK_TRAPDOOR,Blocks.OAK_FENCE_GATE,Blocks.REPEATER,Blocks.COMPARATOR,Blocks.NOTE_BLOCK,Blocks.DAYLIGHT_DETECTOR,Blocks.BELL)){
@@ -139,7 +182,7 @@ public final class RemoteGameTest implements FabricClientGameTest {
         }
     }
     @Override public void runTest(ClientGameTestContext c){
-        UseBlockCallback.EVENT.register((p,l,h,hit)->veto?InteractionResult.FAIL:InteractionResult.PASS);
+        UseBlockCallback.EVENT.register((p,l,h,hit)->{if(!l.isClientSide())serverUseCallbacks.incrementAndGet();return veto?InteractionResult.FAIL:InteractionResult.PASS;});
         c.getInput().resizeWindow(1000,700);
         c.runOnClient(mc->{
             for(var action:ShortcutSettings.Action.values())check(!RemoteClient.shortcuts().get(action).bound(),"Every default shortcut is unassigned");
@@ -166,15 +209,30 @@ public final class RemoteGameTest implements FabricClientGameTest {
             c.takeScreenshot("shortcuts-ko");c.clickScreenButton("gui.done");c.clickScreenButton("gui.done");
             c.getInput().pressKey(GLFW.GLFW_KEY_R);c.waitTick();c.runOnClient(mc->check(mc.gui.screen()==null,"Missing modifiers do not open panel"));
             chord(c,GLFW.GLFW_KEY_R,GLFW.GLFW_MOD_SHIFT);c.waitForScreen(RemoteScreen.class);
-            c.clickScreenButton("remote_interaction.attach");c.waitTick();aim(c,LEVER,.2);c.getInput().pressMouse(GLFW.GLFW_MOUSE_BUTTON_RIGHT);
+            c.clickScreenButton("remote_interaction.attach");c.waitTick();aim(c,LEVER,.2);
+            int beforeAttachCallbacks=serverUseCallbacks.get();c.getInput().holdMouse(GLFW.GLFW_MOUSE_BUTTON_RIGHT);
             c.waitFor(mc->RemoteClient.entries().size()==1);leverId=id(world,LEVER);
+            c.waitTicks(15);
+            check(serverUseCallbacks.get()==beforeAttachCallbacks+1,"Holding use after attachment must not invoke normal block interaction");
+            c.getInput().releaseMouse(GLFW.GLFW_MOUSE_BUTTON_RIGHT);c.waitTick();
             world.getServer().runOnServer(s->{var p=s.getPlayerList().getPlayers().getFirst();check(p.getMainHandItem().isEmpty(),"Empty-hand attachment needs no item");
                 check(!p.level().getBlockState(LEVER).getValue(BlockStateProperties.POWERED),"Attachment suppresses vanilla lever use");});
+            c.getInput().pressMouse(GLFW.GLFW_MOUSE_BUTTON_RIGHT);c.waitTicks(5);
+            world.getServer().runOnServer(s->check(s.overworld().getBlockState(LEVER).getValue(BlockStateProperties.POWERED),"A new press after release can interact normally"));
+            c.getInput().pressMouse(GLFW.GLFW_MOUSE_BUTTON_RIGHT);c.waitTicks(5);
+            chord(c,GLFW.GLFW_KEY_R,GLFW.GLFW_MOD_CONTROL);int beforeDuplicate=serverUseCallbacks.get();
+            c.getInput().holdMouse(GLFW.GLFW_MOUSE_BUTTON_RIGHT);c.waitTicks(15);c.getInput().releaseMouse(GLFW.GLFW_MOUSE_BUTTON_RIGHT);c.waitTick();
+            check(serverUseCallbacks.get()==beforeDuplicate+1,"Rejected duplicate attachment also consumes the entire held press");
+            world.getServer().runOnServer(s->check(!s.overworld().getBlockState(LEVER).getValue(BlockStateProperties.POWERED),"Rejected attachment does not toggle the lever"));
             chord(c,GLFW.GLFW_KEY_R,GLFW.GLFW_MOD_CONTROL);c.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);c.runOnClient(mc->check(!RemoteClient.placing()&&mc.gui.screen()==null,"Escape cancels placement without pause menu"));
             world.getServer().runOnServer(s->s.getPlayerList().getPlayers().getFirst().setItemInHand(InteractionHand.MAIN_HAND,new ItemStack(Items.DIAMOND,12)));
-            world.getConnection().waitForClientboundPackets();aim(c,BUTTON,.04);chord(c,GLFW.GLFW_KEY_R,GLFW.GLFW_MOD_CONTROL);c.getInput().pressMouse(GLFW.GLFW_MOUSE_BUTTON_RIGHT);
+            world.getConnection().waitForClientboundPackets();aim(c,BUTTON,.04);chord(c,GLFW.GLFW_KEY_R,GLFW.GLFW_MOD_CONTROL);
+            int beforeButtonAttach=serverUseCallbacks.get();c.getInput().holdMouse(GLFW.GLFW_MOUSE_BUTTON_RIGHT);
             c.waitFor(mc->RemoteClient.entries().size()==2);buttonId=id(world,BUTTON);
+            c.waitTicks(25);c.getInput().releaseMouse(GLFW.GLFW_MOUSE_BUTTON_RIGHT);c.waitTick();
+            check(serverUseCallbacks.get()==beforeButtonAttach+1,"Holding use during button attachment never triggers the button");
             world.getServer().runOnServer(s->{var p=s.getPlayerList().getPlayers().getFirst();check(p.getMainHandItem().getCount()==12,"Held items are not consumed by attachment");
+                check(!p.level().getBlockState(BUTTON).getValue(BlockStateProperties.POWERED),"Button stays released during attachment");
                 var r=new Receiver(UUID.randomUUID(),p.getUUID(),p.level().dimension().identifier(),HIDDEN,Direction.UP,BuiltInRegistries.BLOCK.getKey(Blocks.LEVER),"숨긴 수신기",false,false);ReceiverData.get(s).add(r);RemoteService.sync(p,"");});
             hiddenId=id(world,HIDDEN);c.waitFor(mc->RemoteClient.entries().size()==3);
             configureMarkers(c,world);
@@ -246,11 +304,20 @@ public final class RemoteGameTest implements FabricClientGameTest {
                 check(p.getMainHandItem().getCount()==12,"Itemless removal never changes inventory");});
             c.waitFor(mc->RemoteClient.entries().size()==2);c.clickScreenButton("gui.done");
         }
+        UUID foreignAfterClear;
         try(var world=save.open()){
             world.getConnection().waitForChunksDownload();world.getServer().runOnServer(s->{var r=ReceiverData.get(s).get(leverId);
                 check(r!=null&&r.name().equals("입구 조명")&&r.slots().equals(List.of(0,1)),"Real world restart restores names and multiple slot memberships");
                 check(ReceiverData.get(s).get(buttonId)==null&&ReceiverData.get(s).get(hiddenId).slots().isEmpty(),"Removed and hidden choices persist");});
             chord(c,GLFW.GLFW_KEY_R,GLFW.GLFW_MOD_SHIFT);c.waitForScreen(RemoteScreen.class);c.takeScreenshot("restored-panel-ko");c.clickScreenButton("gui.done");
+            foreignAfterClear=removeAllReceivers(c,world);
+        }
+        try(var world=save.open()){
+            world.getConnection().waitForChunksDownload();world.getServer().runOnServer(s->{var p=s.getPlayerList().getPlayers().getFirst();var data=ReceiverData.get(s);
+                check(data.owned(p.getUUID()).isEmpty(),"Bulk removal persists after a real world restart");
+                check(data.get(foreignAfterClear)!=null,"Other owner's receiver persists after bulk removal and restart");
+            });
+            c.runOnClient(mc->check(RemoteClient.entries().isEmpty()&&RemoteClient.extractMarkers().isEmpty(),"No removed receivers or cube markers return on reconnect"));
         }
         try(var world=c.worldBuilder().create()){
             world.getConnection().waitForChunksDownload();c.runOnClient(mc->check(RemoteClient.entries().isEmpty(),"Another world does not inherit receivers or slots"));

@@ -125,6 +125,12 @@ public final class RemoteService {
                 || !receiver.owner().equals(player.getUUID())) { sync(player, "denied"); return; }
         data.update(receiver.withSlot(request.slot(), request.enabled())); sync(player, "slot_saved");
     }
+    public static void removeAll(ServerPlayer player) {
+        if (!allow(player, LAST_EDIT, 1)) return;
+        if (!editable(player)) { sync(player, "denied"); return; }
+        ReceiverData.get(player.level().getServer()).removeOwned(player.getUUID());
+        sync(player, "all_removed");
+    }
     public static void activateSlot(ServerPlayer player, int slot) {
         if (!allow(player, LAST_ACTION, 4)) return;
         if (!editable(player) || slot < 0 || slot >= Receiver.SLOT_COUNT) { sync(player, "denied"); return; }

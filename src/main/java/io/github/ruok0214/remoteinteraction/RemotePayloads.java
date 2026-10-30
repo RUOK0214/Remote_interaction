@@ -27,6 +27,11 @@ public final class RemotePayloads {
                 (b, v) -> b.writeBlockPos(v.pos), b -> new Attach(b.readBlockPos()));
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
+    public record RemoveAll() implements CustomPacketPayload {
+        public static final Type<RemoveAll> TYPE = new Type<>(RemoteInteraction.id("remove_all"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, RemoveAll> CODEC = StreamCodec.unit(new RemoveAll());
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
     public record SetSlot(UUID id, int slot, boolean enabled) implements CustomPacketPayload {
         public static final Type<SetSlot> TYPE = new Type<>(RemoteInteraction.id("set_slot"));
         public static final StreamCodec<RegistryFriendlyByteBuf, SetSlot> CODEC = StreamCodec.of(

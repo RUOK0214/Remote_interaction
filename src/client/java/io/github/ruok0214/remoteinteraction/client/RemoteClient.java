@@ -20,6 +20,7 @@ public final class RemoteClient implements ClientModInitializer {
     private static volatile List<AABB> markers = List.of();
     private static boolean requested;
     private static boolean placing;
+    private static boolean suppressUseUntilRelease;
     private static ShortcutSettings shortcuts;
     private static QuickLayoutSettings layout;
     private static MarkerSettings markerSettings;
@@ -29,6 +30,7 @@ public final class RemoteClient implements ClientModInitializer {
     public static QuickLayoutSettings layout() { return layout; }
     public static MarkerSettings markerSettings() { return markerSettings; }
     public static boolean available() { return Minecraft.getInstance().player != null && ClientPlayNetworking.canSend(RemotePayloads.Attach.TYPE); }
+    public static boolean canRemoveAll() { return available() && ClientPlayNetworking.canSend(RemotePayloads.RemoveAll.TYPE); }
     public static void send(CustomPacketPayload request) { if (available()) ClientPlayNetworking.send(request); }
     public static boolean placing() { return placing; }
     public static void cancelPlacing() { placing = false; }
@@ -40,7 +42,11 @@ public final class RemoteClient implements ClientModInitializer {
     }
     public static boolean consumeUse() {
         var mc = Minecraft.getInstance();
+        if (suppressUseUntilRelease) return true;
         if (!placing || mc.player == null || mc.gui.screen() != null) return false;
+        // startUseItem repeats while use is held. The entire attachment press belongs to placement,
+        // including repeat ticks and queued clicks after placement finishes or is rejected.
+        suppressUseUntilRelease = true;
         if (mc.hitResult instanceof BlockHitResult hit && hit.getType() == HitResult.Type.BLOCK) {
             send(new RemotePayloads.Attach(hit.getBlockPos())); placing = false;
         } else mc.player.sendOverlayMessage(RemoteScreen.tr("look_at_block"));
@@ -56,12 +62,14 @@ public final class RemoteClient implements ClientModInitializer {
             if (context.client().gui.screen() instanceof QuickSettingsScreen screen) screen.updated();
             if (context.client().gui.screen() instanceof QuickScreen screen) screen.updated();
         });
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> { entries = List.of(); markers = List.of(); requested = placing = false; });
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> { entries = List.of(); markers = List.of(); requested = placing = suppressUseUntilRelease = false; });
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, access) -> {
             dispatcher.register(ClientCommands.literal("remoteinteraction").executes(c -> { requested = true; return 1; }));
             dispatcher.register(ClientCommands.literal("ri").executes(c -> { requested = true; return 1; }));
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            // Respect Minecraft's configurable use binding, including keyboard bindings.
+            if (!client.options.keyUse.isDown()) suppressUseUntilRelease = false;
             if (!client.isWindowActive() || client.player == null || !client.player.isAlive()) {
                 placing = false;
                 if (client.gui.screen() instanceof QuickScreen) client.gui.setScreen(null);

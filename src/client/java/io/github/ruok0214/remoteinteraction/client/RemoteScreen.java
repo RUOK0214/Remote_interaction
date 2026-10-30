@@ -71,7 +71,7 @@ public final class RemoteScreen extends Screen {
         addRenderableWidget(Button.builder(tr("keys.title"),b->minecraft.gui.setScreen(new KeySettingsScreen(this))).bounds(left+14+toolWidth,tools,toolWidth,20).build());
         addRenderableWidget(Button.builder(tr("slots.title"),b->minecraft.gui.setScreen(new QuickSettingsScreen(this))).bounds(left+18+2*toolWidth,tools,toolWidth,20).build());
         addRenderableWidget(Button.builder(tr("markers.title"),b->minecraft.gui.setScreen(new MarkerSettingsScreen(this))).bounds(left+22+3*toolWidth,tools,toolWidth,20).build());
-        int footer = top + panelHeight - 28, gap = 4, w = (panelWidth - 32) / 4;
+        int footer = top + panelHeight - 28, gap = 4, w = (panelWidth - 36) / 5;
         var rename = addRenderableWidget(Button.builder(tr("rename"), b -> minecraft.gui.setScreen(new RenameScreen(this, selection())))
                 .bounds(left+10, footer, w, 20).build());
         var remove = addRenderableWidget(Button.builder(tr("remove"), b -> {
@@ -82,8 +82,15 @@ public final class RemoteScreen extends Screen {
             }, tr("remove_title"), tr("remove_confirm", label(entry))));
         }).bounds(left+10+w+gap, footer, w, 20).build());
         rename.active = remove.active = selection() != null && RemoteClient.available();
-        addRenderableWidget(Button.builder(tr("help"), b -> minecraft.gui.setScreen(new HelpScreen(this))).bounds(left+10+(w+gap)*2, footer, w, 20).build());
-        addRenderableWidget(Button.builder(Component.translatable("gui.done"), b -> onClose()).bounds(left+10+(w+gap)*3, footer, w, 20).build());
+        var removeAll = addRenderableWidget(Button.builder(tr("remove_all"), b -> minecraft.gui.setScreen(new ConfirmScreen(confirmed -> {
+            minecraft.gui.setScreen(this);
+            if (confirmed && RemoteClient.canRemoveAll()) RemoteClient.send(new RemotePayloads.RemoveAll());
+        }, tr("remove_all_title"), tr("remove_all_confirm", RemoteClient.entries().size()))))
+                .bounds(left+10+(w+gap)*2, footer, w, 20).build());
+        removeAll.active = RemoteClient.canRemoveAll() && !RemoteClient.entries().isEmpty();
+        removeAll.setTooltip(Tooltip.create(tr("remove_all_hint")));
+        addRenderableWidget(Button.builder(tr("help"), b -> minecraft.gui.setScreen(new HelpScreen(this))).bounds(left+10+(w+gap)*3, footer, w, 20).build());
+        addRenderableWidget(Button.builder(Component.translatable("gui.done"), b -> onClose()).bounds(left+10+(w+gap)*4, footer, w, 20).build());
     }
     public void updated(String message) {
         if (!message.isEmpty()) { notice = message; noticeTicks = 80; }

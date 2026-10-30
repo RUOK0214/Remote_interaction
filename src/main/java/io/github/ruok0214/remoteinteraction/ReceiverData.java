@@ -39,6 +39,10 @@ public final class ReceiverData extends SavedData {
         if (r != null) { targets.remove(new Target(r.dimension(), r.pos()), r.id()); setDirty(); }
         return r;
     }
+    public void removeOwned(UUID owner) {
+        // Remove only this player's registrations, including missing/unloaded targets and other dimensions.
+        for (var receiver : owned(owner)) remove(receiver.id());
+    }
     public void targetRemoved(Identifier dimension, BlockPos pos) {
         var r = at(dimension, pos);
         if (r != null) update(r.missing());
