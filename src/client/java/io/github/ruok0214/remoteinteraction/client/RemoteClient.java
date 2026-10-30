@@ -21,9 +21,11 @@ public final class RemoteClient implements ClientModInitializer {
     private static boolean requested;
     private static boolean placing;
     private static ShortcutSettings shortcuts;
+    private static QuickLayoutSettings layout;
     private static int ticks;
     public static List<RemotePayloads.Entry> entries() { return entries; }
     public static ShortcutSettings shortcuts() { return shortcuts; }
+    public static QuickLayoutSettings layout() { return layout; }
     public static boolean available() { return Minecraft.getInstance().player != null && ClientPlayNetworking.canSend(RemotePayloads.Attach.TYPE); }
     public static void send(CustomPacketPayload request) { if (available()) ClientPlayNetworking.send(request); }
     public static boolean placing() { return placing; }
@@ -44,6 +46,7 @@ public final class RemoteClient implements ClientModInitializer {
     }
     @Override public void onInitializeClient() {
         shortcuts = ShortcutSettings.load();
+        layout = QuickLayoutSettings.load();
         ClientPlayNetworking.registerGlobalReceiver(RemotePayloads.Snapshot.TYPE, (payload, context) -> {
             entries = payload.entries();
             if (context.client().gui.screen() instanceof RemoteScreen screen) screen.updated(payload.message());
@@ -65,7 +68,7 @@ public final class RemoteClient implements ClientModInitializer {
                 if (client.player != null) client.gui.setScreen(new RemoteScreen(null));
             }
             // Only poll while the panel is open, or periodically for the small world markers.
-            boolean open = client.gui.screen() instanceof RemoteScreen || client.gui.screen() instanceof QuickScreen || client.gui.screen() instanceof QuickSettingsScreen;
+            boolean open = client.gui.screen() instanceof RemoteScreen || client.gui.screen() instanceof QuickScreen || client.gui.screen() instanceof QuickSettingsScreen || client.gui.screen() instanceof QuickLayoutScreen;
             if (++ticks % (open ? 10 : 100) == 0) send(RemotePayloads.Request.list());
         });
         LevelExtractionEvents.END_EXTRACTION.register(context -> markers = extractMarkers());
