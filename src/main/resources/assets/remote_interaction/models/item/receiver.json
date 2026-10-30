@@ -1,0 +1,16 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {"case":"minecraft:block/iron_block","signal":"minecraft:block/redstone_block","antenna":"minecraft:block/copper_block","particle":"minecraft:block/iron_block"},
+  "elements": [
+    {"from":[3,2,5],"to":[13,10,11],"faces":{"down":{"texture":"#case"},"up":{"texture":"#case"},"north":{"texture":"#case"},"south":{"texture":"#case"},"west":{"texture":"#case"},"east":{"texture":"#case"}}},
+    {"from":[5,4,4],"to":[11,8,5],"faces":{"down":{"texture":"#signal"},"up":{"texture":"#signal"},"north":{"texture":"#signal"},"south":{"texture":"#signal"},"west":{"texture":"#signal"},"east":{"texture":"#signal"}}},
+    {"from":[4,10,7],"to":[6,16,9],"faces":{"down":{"texture":"#antenna"},"up":{"texture":"#antenna"},"north":{"texture":"#antenna"},"south":{"texture":"#antenna"},"west":{"texture":"#antenna"},"east":{"texture":"#antenna"}}},
+    {"from":[10,10,7],"to":[12,14,9],"faces":{"down":{"texture":"#antenna"},"up":{"texture":"#antenna"},"north":{"texture":"#antenna"},"south":{"texture":"#antenna"},"west":{"texture":"#antenna"},"east":{"texture":"#antenna"}}}
+  ],
+  "display": {
+    "gui":{"rotation":[25,30,0],"translation":[0,0,0],"scale":[0.9,0.9,0.9]},
+    "ground":{"rotation":[0,0,0],"translation":[0,3,0],"scale":[0.5,0.5,0.5]},
+    "firstperson_righthand":{"rotation":[0,-25,0],"translation":[0,2,0],"scale":[0.6,0.6,0.6]},
+    "thirdperson_righthand":{"rotation":[0,0,0],"translation":[0,3,1],"scale":[0.55,0.55,0.55]}
+  }
+}

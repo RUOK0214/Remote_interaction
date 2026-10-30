@@ -1,0 +1,9 @@
+{
+  "parent":"minecraft:recipes/root",
+  "criteria":{
+    "has_redstone":{"trigger":"minecraft:inventory_changed","conditions":{"items":[{"items":"minecraft:redstone"}]}},
+    "has_recipe":{"trigger":"minecraft:recipe_unlocked","conditions":{"recipe":"remote_interaction:receiver"}}
+  },
+  "requirements":[["has_redstone","has_recipe"]],
+  "rewards":{"recipes":["remote_interaction:receiver"]}
+}

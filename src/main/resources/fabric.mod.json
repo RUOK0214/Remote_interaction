@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "remote_interaction",
+  "version": "${version}",
+  "name": "Remote Interaction",
+  "description": "Attach receivers to interactive blocks and control them from one remote panel. 수신기를 붙인 블록을 원격 상호작용 창에서 조작합니다.",
+  "authors": ["RUOK0214"],
+  "contact": {"sources": "https://github.com/RUOK0214/Remote_interaction", "issues": "https://github.com/RUOK0214/Remote_interaction/issues"},
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["io.github.ruok0214.remoteinteraction.RemoteInteraction"],
+    "client": ["io.github.ruok0214.remoteinteraction.client.RemoteClient"],
+    "modmenu": ["io.github.ruok0214.remoteinteraction.client.RemoteModMenu"]
+  },
+  "mixins": ["remote_interaction.mixins.json"],
+  "depends": {"fabricloader": ">=0.19.5", "minecraft": "26.2", "java": ">=25", "fabric-api": ">=0.160.0+26.2"},
+  "suggests": {"modmenu": "*"}
+}
