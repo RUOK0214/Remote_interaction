@@ -1,7 +1,0 @@
-{
-  "type":"minecraft:crafting_shaped",
-  "category":"redstone",
-  "pattern":["ICI","RQR","ICI"],
-  "key":{"I":"minecraft:iron_ingot","C":"minecraft:copper_ingot","R":"minecraft:redstone","Q":"minecraft:quartz"},
-  "result":{"id":"remote_interaction:receiver","count":2}
-}

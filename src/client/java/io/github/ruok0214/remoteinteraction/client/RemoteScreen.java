@@ -20,10 +20,14 @@ public final class RemoteScreen extends Screen {
     public static Component label(RemotePayloads.Entry entry) {
         return entry.name().isBlank() ? BuiltInRegistries.BLOCK.getValue(entry.block()).getName() : Component.literal(entry.name());
     }
+    public static Component stateLabel(RemotePayloads.Entry entry) {
+        if (!entry.status().equals("ready")) return tr("status."+entry.status());
+        return entry.state().startsWith("note_") ? tr("state.note",entry.state().substring(5)) : tr("state."+entry.state());
+    }
     @Override protected void init() {
         panelWidth = Math.min(500, width - 16); panelHeight = height - 16;
         left = (width - panelWidth) / 2; top = 8;
-        rows = Math.max(1, (panelHeight - 164) / 42);
+        rows = Math.max(1, (panelHeight - 190) / 42);
         search = addRenderableWidget(new EditBox(font, left + 10, top + 44, panelWidth - 20, 20, tr("search")));
         search.setMaxLength(64); search.setValue(query); search.setHint(tr("search"));
         search.setResponder(value -> { query = value; page = 0; rebuildRows(); });
@@ -56,11 +60,16 @@ public final class RemoteScreen extends Screen {
             activate.active = RemoteClient.available() && entry.status().equals("ready");
             activate.setTooltip(Tooltip.create(tr("status." + entry.status())));
         }
-        int nav = top + panelHeight - 82;
+        int nav = top + panelHeight - 108;
         var prev = addRenderableWidget(Button.builder(Component.literal("<"), b -> { page--; rebuildRows(); }).bounds(left+10, nav, 28, 20).build());
         prev.active = page > 0;
         var next = addRenderableWidget(Button.builder(Component.literal(">"), b -> { page++; rebuildRows(); }).bounds(left+panelWidth-38, nav, 28, 20).build());
         next.active = page+1 < pages;
+        int tools = top+panelHeight-54, toolWidth=(panelWidth-28)/3;
+        var attach=addRenderableWidget(Button.builder(tr("attach"),b->RemoteClient.startPlacing()).bounds(left+10,tools,toolWidth,20).build());
+        attach.active=RemoteClient.available();
+        addRenderableWidget(Button.builder(tr("keys.title"),b->minecraft.gui.setScreen(new KeySettingsScreen(this))).bounds(left+14+toolWidth,tools,toolWidth,20).build());
+        addRenderableWidget(Button.builder(tr("slots.title"),b->minecraft.gui.setScreen(new QuickSettingsScreen(this))).bounds(left+18+2*toolWidth,tools,toolWidth,20).build());
         int footer = top + panelHeight - 28, gap = 4, w = (panelWidth - 32) / 4;
         var rename = addRenderableWidget(Button.builder(tr("rename"), b -> minecraft.gui.setScreen(new RenameScreen(this, selection())))
                 .bounds(left+10, footer, w, 20).build());
@@ -100,8 +109,8 @@ public final class RemoteScreen extends Screen {
             g.centeredText(font, tr(key), width/2, top+83, 0xFFE0C28A);
         }
         int total = filtered().size(), pages = Math.max(1, (total+rows-1)/rows);
-        g.centeredText(font, tr("page", page+1, pages, RemoteClient.entries().size()), width/2, top+panelHeight-76, 0xFFCAD5E3);
+        g.centeredText(font, tr("page", page+1, pages, RemoteClient.entries().size()), width/2, top+panelHeight-102, 0xFFCAD5E3);
         Component message = noticeTicks > 0 ? tr("message."+notice) : tr("select_hint");
-        g.centeredText(font, message, width/2, top+panelHeight-48, 0xFFF1DB9B);
+        g.centeredText(font, message, width/2, top+panelHeight-74, 0xFFF1DB9B);
     }
 }
