@@ -71,8 +71,12 @@ public final class RemoteService {
         }
         var receiver = new Receiver(UUID.randomUUID(), player.getUUID(), level.dimension().identifier(), pos.immutable(),
                 hit.getDirection(), BuiltInRegistries.BLOCK.getKey(state.getBlock()), "", false, false);
+        boolean automatic = QuickPreferences.get(level.getServer()).autoAssign(player.getUUID());
+        int slot = automatic ? data.firstEmptySlot(player.getUUID()) : -1;
+        if (slot >= 0) receiver = receiver.withSlot(slot, true);
         if (!data.add(receiver)) { tell(player, "limit"); return; }
-        sync(player, "attached"); tell(player, "attached");
+        String message = automatic && slot < 0 ? "attached_slots_full" : "attached";
+        sync(player, message); tell(player, message);
     }
     private static void tell(ServerPlayer player, String key) {
         player.sendOverlayMessage(Component.translatable("remote_interaction.message." + key));
@@ -110,7 +114,8 @@ public final class RemoteService {
             entries.add(new RemotePayloads.Entry(r.id(), r.dimension(), r.pos(), r.face(), r.block(), r.name(), status,
                     status.equals("ready") ? state(player.level().getBlockState(r.pos())) : "", r.slots()));
         }
-        ServerPlayNetworking.send(player, new RemotePayloads.Snapshot(List.copyOf(entries), message));
+        ServerPlayNetworking.send(player, new RemotePayloads.Snapshot(List.copyOf(entries), message,
+                QuickPreferences.get(player.level().getServer()).autoAssign(player.getUUID())));
     }
     public static void request(ServerPlayer player, RemotePayloads.Request request) {
         var timer = request.action() == RemotePayloads.Action.LIST ? LAST_LIST : request.action() == RemotePayloads.Action.ACTIVATE ? LAST_ACTION : LAST_EDIT;
@@ -138,6 +143,12 @@ public final class RemoteService {
         if (!editable(player) || request.slot() < 0 || request.slot() >= Receiver.SLOT_COUNT || receiver == null
                 || !receiver.owner().equals(player.getUUID())) { sync(player, "denied"); return; }
         data.update(receiver.withSlot(request.slot(), request.enabled())); sync(player, "slot_saved");
+    }
+    public static void setAutoAssign(ServerPlayer player, boolean enabled) {
+        if (!allow(player, LAST_EDIT, 1)) return;
+        if (!editable(player)) { sync(player, "denied"); return; }
+        QuickPreferences.get(player.level().getServer()).setAutoAssign(player.getUUID(), enabled);
+        sync(player, "auto_assign_saved");
     }
     public static void removeAll(ServerPlayer player) {
         if (!allow(player, LAST_EDIT, 1)) return;

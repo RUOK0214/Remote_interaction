@@ -23,6 +23,12 @@ public final class ReceiverData extends SavedData {
     public List<Receiver> owned(UUID owner) { return entries.values().stream().filter(r -> r.owner().equals(owner)).toList(); }
     public Receiver get(UUID id) { return entries.get(id); }
     public Receiver at(Identifier dimension, BlockPos pos) { return entries.get(targets.get(new Target(dimension, pos))); }
+    public int firstEmptySlot(UUID owner) {
+        boolean[] occupied = new boolean[Receiver.SLOT_COUNT];
+        for (var r : owned(owner)) for (int slot : r.slots()) occupied[slot] = true;
+        for (int slot = 0; slot < occupied.length; slot++) if (!occupied[slot]) return slot;
+        return -1;
+    }
     private void insert(Receiver value) {
         var old = entries.put(value.id(), value);
         if (old != null) targets.remove(new Target(old.dimension(), old.pos()), old.id());

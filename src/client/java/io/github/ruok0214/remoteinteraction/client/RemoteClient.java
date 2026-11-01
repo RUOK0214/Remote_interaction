@@ -19,6 +19,7 @@ public final class RemoteClient implements ClientModInitializer {
     private static List<RemotePayloads.Entry> entries = List.of();
     private static volatile List<AABB> markers = List.of();
     private static boolean requested;
+    private static boolean autoAssign;
     private static boolean placing;
     private static boolean suppressUseUntilRelease;
     private static ShortcutSettings shortcuts;
@@ -29,6 +30,8 @@ public final class RemoteClient implements ClientModInitializer {
     public static ShortcutSettings shortcuts() { return shortcuts; }
     public static QuickLayoutSettings layout() { return layout; }
     public static MarkerSettings markerSettings() { return markerSettings; }
+    public static boolean autoAssign() { return autoAssign; }
+    public static boolean canAutoAssign() { return available() && ClientPlayNetworking.canSend(RemotePayloads.SetAutoAssign.TYPE); }
     public static boolean available() { return Minecraft.getInstance().player != null && ClientPlayNetworking.canSend(RemotePayloads.Attach.TYPE); }
     public static boolean canRemoveAll() { return available() && ClientPlayNetworking.canSend(RemotePayloads.RemoveAll.TYPE); }
     public static boolean canRemoveMissing() { return available() && ClientPlayNetworking.canSend(RemotePayloads.RemoveMissing.TYPE); }
@@ -59,12 +62,13 @@ public final class RemoteClient implements ClientModInitializer {
         layout = QuickLayoutSettings.load();
         markerSettings = MarkerSettings.load();
         ClientPlayNetworking.registerGlobalReceiver(RemotePayloads.Snapshot.TYPE, (payload, context) -> {
-            entries = payload.entries();
+            entries = payload.entries(); autoAssign = payload.autoAssign();
             if (context.client().gui.screen() instanceof RemoteScreen screen) screen.updated(payload.message());
             if (context.client().gui.screen() instanceof QuickSettingsScreen screen) screen.updated();
+            if (context.client().gui.screen() instanceof QuickLayoutScreen screen) screen.updated();
             if (context.client().gui.screen() instanceof QuickScreen screen) screen.updated();
         });
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> { entries = List.of(); markers = List.of(); requested = placing = suppressUseUntilRelease = false; });
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> { entries = List.of(); markers = List.of(); requested = placing = suppressUseUntilRelease = autoAssign = false; });
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, access) -> {
             dispatcher.register(ClientCommands.literal("remoteinteraction").executes(c -> { requested = true; return 1; }));
             dispatcher.register(ClientCommands.literal("ri").executes(c -> { requested = true; return 1; }));

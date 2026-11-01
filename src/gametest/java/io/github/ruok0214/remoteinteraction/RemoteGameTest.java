@@ -47,26 +47,46 @@ public final class RemoteGameTest implements FabricClientGameTest {
         var p=c.computeOnClient(mc->new double[]{x*mc.getWindow().getScreenWidth()/mc.gui.screen().width,y*mc.getWindow().getScreenHeight()/mc.gui.screen().height});
         c.getInput().setCursorPos(p[0],p[1]);c.waitTick();
     }
+    private static void openSlot(ClientGameTestContext c,int slot){
+        String label=c.computeOnClient(mc->RemoteScreen.tr("slots.edit",slot+1).getString());
+        for(int attempts=0;attempts<40;attempts++){
+            var target=c.computeOnClient(mc->mc.gui.screen().children().stream().filter(Button.class::isInstance).map(Button.class::cast)
+                    .filter(b->b.getMessage().getString().equals(label)).findFirst().orElseThrow());
+            if(c.computeOnClient(mc->target.visible)){
+                var point=c.computeOnClient(mc->new int[]{target.getX()+target.getWidth()/2,target.getY()+10});
+                cursor(c,point[0],point[1]);c.getInput().pressMouse(GLFW.GLFW_MOUSE_BUTTON_LEFT);c.waitForScreen(QuickSettingsScreen.class);return;
+            }
+            var p=c.computeOnClient(mc->{var screen=(QuickLayoutScreen)mc.gui.screen();var r=screen.preview().bounds(screen.width,screen.height);
+                return new int[]{r.x()+10,Math.max(48,r.y())+10,target.getY()<Math.max(47,r.y())?1:-1};});
+            cursor(c,p[0],p[1]);c.getInput().scroll(p[2]);c.waitTick();
+        }
+        throw new AssertionError("Cannot reach slot "+(slot+1));
+    }
     private static void clickSlot(ClientGameTestContext c,UUID id,int slot){
+        openSlot(c,slot);
         boolean before=c.computeOnClient(mc->RemoteClient.entries().stream().filter(e->e.id().equals(id)).findFirst().orElseThrow().slots().contains(slot));
         var p=c.computeOnClient(mc->{
             int row=0;while(!RemoteClient.entries().get(row).id().equals(id))row++;
-            var box=mc.gui.screen().children().stream().filter(Checkbox.class::isInstance).map(Checkbox.class::cast).toList().get(row*Receiver.SLOT_COUNT+slot);
+            var box=mc.gui.screen().children().stream().filter(Checkbox.class::isInstance).map(Checkbox.class::cast).toList().get(row);
             return new int[]{box.getX()+5,box.getY()+5};
         });
         cursor(c,p[0],p[1]);c.getInput().pressMouse(GLFW.GLFW_MOUSE_BUTTON_LEFT);
         c.waitFor(mc->RemoteClient.entries().stream().filter(e->e.id().equals(id)).findFirst().orElseThrow().slots().contains(slot)!=before);
+        c.clickScreenButton("gui.done");c.waitForScreen(QuickLayoutScreen.class);
     }
     private static void drag(ClientGameTestContext c,double x,double y,double dx,double dy){
         cursor(c,x,y);c.getInput().holdMouse(GLFW.GLFW_MOUSE_BUTTON_LEFT);c.waitTick();
         cursor(c,x+dx,y+dy);c.getInput().releaseMouse(GLFW.GLFW_MOUSE_BUTTON_LEFT);c.waitTick();
     }
     private static void editLayout(ClientGameTestContext c){
-        c.clickScreenButton("remote_interaction.layout.title");c.waitForScreen(QuickLayoutScreen.class);
+        c.waitForScreen(QuickLayoutScreen.class);
         var before=c.computeOnClient(mc->RemoteClient.layout().get().bounds(mc.gui.screen().width,mc.gui.screen().height));
         drag(c,before.x()+30,before.y()+25,-20,-18);
         drag(c,before.right()-20-5,before.bottom()-18-5,-90,-60);
-        c.takeScreenshot("quick-layout-editor-ko");c.clickScreenButton("remote_interaction.save");
+        var draft=c.computeOnClient(mc->((QuickLayoutScreen)mc.gui.screen()).preview());
+        openSlot(c,0);c.clickScreenButton("gui.done");
+        c.runOnClient(mc->check(((QuickLayoutScreen)mc.gui.screen()).preview().equals(draft),"Returning from a slot preserves the unsaved layout"));
+        c.takeScreenshot("quick-layout-editor-ko");c.clickScreenButton("remote_interaction.layout.save");
         var saved=c.computeOnClient(mc->RemoteClient.layout().get());
         c.runOnClient(mc->{
             var after=saved.bounds(mc.gui.screen().width,mc.gui.screen().height);
@@ -74,15 +94,16 @@ public final class RemoteGameTest implements FabricClientGameTest {
             check(after.width()==before.width()-90&&after.height()==before.height()-60,"Corner drag resizes the preview");
             check(QuickLayoutSettings.load().get().equals(saved),"Window layout persists to disk");
         });
-        c.clickScreenButton("remote_interaction.layout.title");c.clickScreenButton("remote_interaction.layout.reset");c.clickScreenButton("gui.cancel");
+        c.clickScreenButton("remote_interaction.slots.title");c.clickScreenButton("remote_interaction.layout.reset");c.clickScreenButton("remote_interaction.layout.cancel");
         c.runOnClient(mc->check(RemoteClient.layout().get().equals(saved),"Cancel discards the reset preview"));
-        c.clickScreenButton("remote_interaction.layout.title");drag(c,before.x()+10,before.y()+10,-5000,-5000);
+        c.clickScreenButton("remote_interaction.slots.title");drag(c,before.x()+10,before.y()+10,-5000,-5000);
         c.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
         c.runOnClient(mc->{
             check(RemoteClient.layout().get().equals(saved),"Escape discards a move");
             var bounded=new QuickLayout(1,1,1,1).bounds(320,240);
             check(bounded.x()>=8&&bounded.y()>=8&&bounded.right()<=312&&bounded.bottom()<=232,"Oversized saved layout stays inside small screens");
         });
+        c.clickScreenButton("remote_interaction.slots.title");
     }
     private static void markerSlider(ClientGameTestContext c,MarkerSettingsScreen.Control control,double value){
         var p=c.computeOnClient(mc->{
@@ -230,6 +251,84 @@ public final class RemoteGameTest implements FabricClientGameTest {
         c.getInput().releaseKey(GLFW.GLFW_KEY_R);modifiers(c,GLFW.GLFW_MOD_CONTROL|GLFW.GLFW_MOD_ALT,false);c.waitTick();
         return foreignId;
     }
+    private static void automaticSetting(ClientGameTestContext c,boolean enabled){
+        menu(c);c.clickScreenButton("remote_interaction.slots.title");c.waitForScreen(QuickLayoutScreen.class);
+        c.runOnClient(mc->check(RemoteClient.autoAssign()!=enabled,"Auto setting changes through its checkbox"));
+        var point=c.computeOnClient(mc->{var box=mc.gui.screen().children().stream().filter(Checkbox.class::isInstance).map(Checkbox.class::cast).findFirst().orElseThrow();
+            return new int[]{box.getX()+5,box.getY()+5};});
+        cursor(c,point[0],point[1]);c.getInput().pressMouse(GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        c.waitFor(mc->RemoteClient.autoAssign()==enabled);c.takeScreenshot(enabled?"auto-add-enabled-ko":"auto-add-disabled-ko");
+        c.clickScreenButton("remote_interaction.layout.cancel");c.clickScreenButton("gui.done");
+        c.runOnClient(mc->check(RemoteClient.autoAssign()==enabled,"Cancelling layout does not undo the immediately saved preference"));
+    }
+    private static void placeAutomaticTarget(ClientGameTestContext c,BlockPos pos){
+        int before=c.computeOnClient(mc->RemoteClient.entries().size());
+        aim(c,pos,.2);chord(c,GLFW.GLFW_KEY_R,GLFW.GLFW_MOD_CONTROL);c.getInput().pressMouse(GLFW.GLFW_MOUSE_BUTTON_RIGHT);
+        c.waitFor(mc->RemoteClient.entries().size()!=before);
+    }
+    private static void automaticAssignments(ClientGameTestContext c){
+        TestWorldSave save;UUID replacementId,secondId;
+        try(var world=c.worldBuilder().create()){
+            save=world.getWorldSave();world.getConnection().waitForChunksDownload();
+            c.runOnClient(mc->check(!RemoteClient.autoAssign(),"New worlds default to automatic assignment off"));
+            world.getServer().runCommand("fill -2 80 -2 8 80 4 minecraft:stone");
+            for(int x=0;x<=5;x++)world.getServer().runCommand("setblock "+x+" 81 0 minecraft:lever[face=floor]");
+            world.getServer().runCommand("gamemode survival @a");world.getServer().runCommand("tp @a 2.5 81 2.5");world.getConnection().waitForClientboundPackets();
+            placeAutomaticTarget(c,LEVER);UUID manualId=id(world,LEVER);
+            world.getServer().runOnServer(s->{
+                var p=s.getPlayerList().getPlayers().getFirst();var data=ReceiverData.get(s);
+                check(data.get(manualId).slots().isEmpty(),"Off leaves a new receiver unassigned");
+                UUID other=UUID.randomUUID();
+                data.add(new Receiver(UUID.randomUUID(),other,p.level().dimension().identifier(),new BlockPos(7,81,0),Direction.UP,
+                        BuiltInRegistries.BLOCK.getKey(Blocks.LEVER),"foreign",false,false,java.util.stream.IntStream.range(0,15).boxed().toList()));
+                check(!QuickPreferences.get(s).autoAssign(other),"Another player's preference is independent");
+            });
+            automaticSetting(c,true);
+            world.getServer().runOnServer(s->{var p=s.getPlayerList().getPlayers().getFirst();
+                check(ReceiverData.get(s).get(manualId).slots().isEmpty(),"Enabling auto-add does not reassign existing receivers");
+                for(var mode:List.of(GameType.SPECTATOR,GameType.ADVENTURE)){
+                    p.setGameMode(mode);RemoteService.forget(p.getUUID());RemoteService.setAutoAssign(p,false);
+                    check(QuickPreferences.get(s).autoAssign(p.getUUID()),"Auto setting cannot be changed in "+mode);
+                }
+                p.setGameMode(GameType.SURVIVAL);RemoteService.forget(p.getUUID());
+            });
+            placeAutomaticTarget(c,BUTTON);UUID firstId=id(world,BUTTON);
+            placeAutomaticTarget(c,HIDDEN);secondId=id(world,HIDDEN);
+            world.getServer().runOnServer(s->{var data=ReceiverData.get(s);
+                check(data.get(firstId).slots().equals(List.of(0)),"First new receiver uses slot 1, ignoring other owners' assignments");
+                check(data.get(secondId).slots().equals(List.of(1)),"Next new receiver uses slot 2 instead of grouping into slot 1");
+            });
+            placeAutomaticTarget(c,BUTTON);placeAutomaticTarget(c,new BlockPos(1,81,0));replacementId=id(world,new BlockPos(1,81,0));
+            var occupied=world.getServer().computeOnServer(s->{var p=s.getPlayerList().getPlayers().getFirst();var data=ReceiverData.get(s);
+                check(data.get(firstId)==null&&data.get(replacementId).slots().equals(List.of(0)),"A later attachment reuses the earliest freed slot");
+                var r=data.get(manualId);for(int slot=0;slot<15;slot++)r=r.withSlot(slot,true);data.update(r);RemoteService.sync(p,"");
+                return data.owned(p.getUUID());
+            });
+            placeAutomaticTarget(c,new BlockPos(3,81,0));UUID fullId=id(world,new BlockPos(3,81,0));
+            world.getServer().runOnServer(s->{var data=ReceiverData.get(s);
+                check(data.get(fullId).slots().isEmpty(),"Full slots leave the attached receiver unassigned");
+                for(var r:occupied)check(r.equals(data.get(r.id())),"Full slots never overwrite existing assignments");
+            });
+            automaticSetting(c,false);
+            world.getServer().runOnServer(s->{var data=ReceiverData.get(s);var r=data.get(manualId);
+                for(int slot=0;slot<15;slot++)r=r.withSlot(slot,false);data.update(r);
+            });
+            placeAutomaticTarget(c,new BlockPos(5,81,0));UUID offId=id(world,new BlockPos(5,81,0));
+            world.getServer().runOnServer(s->check(ReceiverData.get(s).get(offId).slots().isEmpty(),"Turning off stops automatic assignment even with vacant slots"));
+            automaticSetting(c,true);
+        }
+        try(var world=save.open()){
+            world.getConnection().waitForChunksDownload();c.waitFor(mc->RemoteClient.autoAssign());
+            world.getServer().runOnServer(s->{var p=s.getPlayerList().getPlayers().getFirst();var data=ReceiverData.get(s);
+                check(QuickPreferences.get(s).autoAssign(p.getUUID()),"Auto preference survives a real world restart");
+                check(data.get(replacementId).slots().equals(List.of(0))&&data.get(secondId).slots().equals(List.of(1)),"Automatic assignments survive restart");
+            });
+            automaticSetting(c,false);
+        }
+        try(var world=save.open()){
+            world.getConnection().waitForChunksDownload();c.runOnClient(mc->check(!RemoteClient.autoAssign(),"Disabled preference persists too"));
+        }
+    }
     private static void supportedTargets(net.minecraft.server.MinecraftServer server){
         var p=server.getPlayerList().getPlayers().getFirst();var level=p.level();var data=ReceiverData.get(server);var pos=new BlockPos(5,81,0);
         for(var block:List.of(Blocks.OAK_DOOR,Blocks.OAK_TRAPDOOR,Blocks.OAK_FENCE_GATE,Blocks.REPEATER,Blocks.COMPARATOR,Blocks.NOTE_BLOCK,Blocks.DAYLIGHT_DETECTOR,Blocks.BELL)){
@@ -314,23 +413,24 @@ public final class RemoteGameTest implements FabricClientGameTest {
                 var r=new Receiver(UUID.randomUUID(),p.getUUID(),p.level().dimension().identifier(),HIDDEN,Direction.UP,BuiltInRegistries.BLOCK.getKey(Blocks.LEVER),"숨긴 수신기",false,false);ReceiverData.get(s).add(r);RemoteService.sync(p,"");});
             hiddenId=id(world,HIDDEN);c.waitFor(mc->RemoteClient.entries().size()==3);
             configureMarkers(c,world);
-            menu(c);c.clickScreenButton("remote_interaction.slots.title");c.waitForScreen(QuickSettingsScreen.class);
-            c.runOnClient(mc->check(mc.gui.screen().children().stream().filter(Checkbox.class::isInstance).count()==45,"Each receiver exposes fifteen slot checkboxes"));
+            menu(c);c.clickScreenButton("remote_interaction.slots.title");c.waitForScreen(QuickLayoutScreen.class);
+            openSlot(c,0);
+            c.runOnClient(mc->check(mc.gui.screen().children().stream().filter(Checkbox.class::isInstance).count()==3,"A slot exposes one checkbox per receiver"));
+            c.takeScreenshot("slot-receiver-selection-ko");c.clickScreenButton("gui.done");
             clickSlot(c,buttonId,0);
             for(int slot=0;slot<15;slot++)clickSlot(c,leverId,slot);
             c.runOnClient(mc->check(RemoteClient.entries().stream().filter(e->e.id().equals(leverId)).findFirst().orElseThrow().slots().size()==15,"All fifteen memberships arrive through the network codec"));
             c.takeScreenshot("all-fifteen-slots-ko");
             for(int slot=2;slot<14;slot++)clickSlot(c,leverId,slot);
             c.runOnClient(mc->check(RemoteClient.entries().stream().filter(e->e.id().equals(leverId)).findFirst().orElseThrow().slots().equals(List.of(0,1,14)),"Unchecking keeps slots 1, 2 and 15"));
-            c.takeScreenshot("receiver-slot-checkboxes-ko");editLayout(c);
+            c.takeScreenshot("slot-editor-overview-ko");editLayout(c);
             world.getServer().runOnServer(s->check(!s.overworld().getBlockState(LEVER).getValue(BlockStateProperties.POWERED),"Layout preview never activates receivers"));
-            c.getInput().resizeWindow(854,480);c.waitTicks(3);c.takeScreenshot("receiver-slots-small-ko");
-            c.runOnClient(mc->check(mc.gui.screen().children().stream().filter(Checkbox.class::isInstance).count()==30,"Small screen fits two compact receiver rows"));
-            c.clickScreenButton("remote_interaction.next");c.runOnClient(mc->check(mc.gui.screen().children().stream().filter(Checkbox.class::isInstance).count()==15,"Last receiver remains accessible on the next page"));
-            c.clickScreenButton("remote_interaction.previous");
-            c.getInput().resizeWindow(640,480);c.waitTicks(3);clickSlot(c,leverId,14);clickSlot(c,leverId,14);c.takeScreenshot("receiver-slots-narrow-ko");
+            c.getInput().resizeWindow(640,480);c.waitTicks(3);clickSlot(c,leverId,14);clickSlot(c,leverId,14);
+            c.takeScreenshot("slot-editor-small-ko");openSlot(c,14);c.takeScreenshot("slot-receivers-small-ko");
+            c.runOnClient(mc->check(mc.gui.screen().children().stream().filter(Checkbox.class::isInstance).count()==3,"All three receiver choices fit at 640 by 480"));
+            c.clickScreenButton("gui.done");
             c.getInput().resizeWindow(1000,700);c.waitTicks(3);
-            c.clickScreenButton("gui.done");c.clickScreenButton("gui.done");
+            c.clickScreenButton("remote_interaction.layout.cancel");c.clickScreenButton("gui.done");
             world.getServer().runCommand("tp @a 6.5 81 4.5");world.getConnection().waitForClientboundPackets();
             modifiers(c,quickMods,true);c.getInput().holdKey(GLFW.GLFW_KEY_R);c.waitForScreen(QuickScreen.class);
             c.runOnClient(mc->{check(!mc.mouseHandler.isMouseGrabbed(),"Quick screen releases cursor");check(!mc.isPaused(),"Quick screen does not pause game");
@@ -412,5 +512,6 @@ public final class RemoteGameTest implements FabricClientGameTest {
         try(var world=c.worldBuilder().create()){
             world.getConnection().waitForChunksDownload();c.runOnClient(mc->check(RemoteClient.entries().isEmpty(),"Another world does not inherit receivers or slots"));
         }
+        automaticAssignments(c);
     }
 }
