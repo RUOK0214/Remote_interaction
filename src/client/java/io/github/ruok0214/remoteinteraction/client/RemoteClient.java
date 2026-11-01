@@ -31,6 +31,8 @@ public final class RemoteClient implements ClientModInitializer {
     public static MarkerSettings markerSettings() { return markerSettings; }
     public static boolean available() { return Minecraft.getInstance().player != null && ClientPlayNetworking.canSend(RemotePayloads.Attach.TYPE); }
     public static boolean canRemoveAll() { return available() && ClientPlayNetworking.canSend(RemotePayloads.RemoveAll.TYPE); }
+    public static boolean canRemoveMissing() { return available() && ClientPlayNetworking.canSend(RemotePayloads.RemoveMissing.TYPE); }
+    public static long missingCount() { return entries.stream().filter(e -> e.status().equals("missing")).count(); }
     public static void send(CustomPacketPayload request) { if (available()) ClientPlayNetworking.send(request); }
     public static boolean placing() { return placing; }
     public static void cancelPlacing() { placing = false; }

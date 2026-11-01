@@ -128,6 +128,66 @@ public final class RemoteGameTest implements FabricClientGameTest {
         });
         c.getInput().resizeWindow(1000,700);c.waitTicks(3);
     }
+    private static void cleanMissingReceivers(ClientGameTestContext c,TestSingleplayerContext world,UUID brokenId){
+        var fixtures=world.getServer().computeOnServer(s->{
+            var p=s.getPlayerList().getPlayers().getFirst();var data=ReceiverData.get(s);var dim=p.level().dimension().identifier();
+            var lever=BuiltInRegistries.BLOCK.getKey(Blocks.LEVER);var far=new BlockPos(100000,81,100000);
+            var nether=s.getLevel(net.minecraft.world.level.Level.NETHER);var otherPos=new BlockPos(0,81,0);
+            // Keep this test fixture loaded; the cleanup implementation never forces chunks.
+            nether.setChunkForced(0,0,true);
+            nether.setBlockAndUpdate(otherPos.below(),Blocks.STONE.defaultBlockState());
+            nether.setBlockAndUpdate(otherPos,Blocks.LEVER.defaultBlockState().setValue(BlockStateProperties.ATTACH_FACE,AttachFace.FLOOR));
+            nether.setBlockAndUpdate(otherPos.east(2),Blocks.STONE.defaultBlockState());
+            var values=List.of(
+                    new Receiver(UUID.randomUUID(),p.getUUID(),dim,far.east(32),Direction.UP,lever,"known broken",false,true,List.of(14)),
+                    new Receiver(UUID.randomUUID(),p.getUUID(),dim,new BlockPos(6,81,0),Direction.UP,lever,"missing block",false,false,List.of(14)),
+                    new Receiver(UUID.randomUUID(),p.getUUID(),nether.dimension().identifier(),otherPos.east(2),Direction.UP,lever,"broken in Nether",false,false,List.of(14)),
+                    new Receiver(UUID.randomUUID(),p.getUUID(),dim,BUTTON,Direction.UP,BuiltInRegistries.BLOCK.getKey(Blocks.STONE_BUTTON),"new connection",false,false,List.of(12)),
+                    new Receiver(UUID.randomUUID(),p.getUUID(),dim,far,Direction.UP,lever,"unloaded",false,false,List.of(11)),
+                    new Receiver(UUID.randomUUID(),p.getUUID(),nether.dimension().identifier(),otherPos,Direction.UP,lever,"connected in Nether",false,false,List.of(10)),
+                    new Receiver(UUID.randomUUID(),p.getUUID(),RemoteInteraction.id("unavailable_dimension"),far,Direction.UP,lever,"unavailable dimension",false,false,List.of(9)),
+                    new Receiver(UUID.randomUUID(),UUID.randomUUID(),dim,new BlockPos(7,81,0),Direction.UP,lever,"another player",false,true,List.of(14)));
+            for(var receiver:values)check(data.add(receiver),"Cleanup fixture registered");
+            for(var mode:List.of(GameType.SPECTATOR,GameType.ADVENTURE)){
+                p.setGameMode(mode);RemoteService.forget(p.getUUID());RemoteService.removeMissing(p);
+                check(data.owned(p.getUUID()).size()==10,"Cleanup denied in "+mode);
+            }
+            p.setGameMode(GameType.SURVIVAL);RemoteService.forget(p.getUUID());RemoteService.sync(p,"");return values;
+        });
+        c.waitFor(mc->RemoteClient.entries().size()==10&&RemoteClient.missingCount()==4);
+        c.runOnClient(mc->mc.gui.screen().children().stream().filter(EditBox.class::isInstance).map(EditBox.class::cast).findFirst().orElseThrow().setValue("입구"));
+        c.getInput().resizeWindow(640,480);c.waitTicks(3);c.takeScreenshot("cleanup-filtered-small-ko");
+        c.clickScreenButton("remote_interaction.remove_missing");c.waitForScreen(ConfirmScreen.class);
+        c.takeScreenshot("cleanup-confirm-small-ko");c.clickScreenButton("gui.no");
+        world.getServer().runOnServer(s->check(ReceiverData.get(s).owned(s.getPlayerList().getPlayers().getFirst().getUUID()).size()==10,"Cancelling cleanup preserves all receivers"));
+        var before=world.getServer().computeOnServer(s->List.of(s.overworld().getBlockState(LEVER),s.overworld().getBlockState(BUTTON),s.overworld().getBlockState(HIDDEN)));
+        c.clickScreenButton("remote_interaction.remove_missing");c.clickScreenButton("gui.yes");
+        c.waitFor(mc->RemoteClient.entries().size()==6&&RemoteClient.missingCount()==0);
+        world.getServer().runOnServer(s->{
+            var p=s.getPlayerList().getPlayers().getFirst();var data=ReceiverData.get(s);
+            check(data.get(brokenId)==null,"Cleanup removes the replaced block's old connection");
+            for(int i=0;i<3;i++)check(data.get(fixtures.get(i).id())==null,"Cleanup removes confirmed missing targets across dimensions");
+            for(int i=3;i<fixtures.size();i++)check(fixtures.get(i).equals(data.get(fixtures.get(i).id())),"Cleanup preserves connected, unloaded, unknown-dimensional and foreign entries with their slots");
+            check(data.at(p.level().dimension().identifier(),BUTTON).id().equals(fixtures.get(3).id()),"Cleaning the old connection preserves the new connection at the same position");
+            check(!p.level().hasChunkAt(fixtures.get(4).pos()),"Cleanup does not load distant chunks");
+            check(before.equals(List.of(s.overworld().getBlockState(LEVER),s.overworld().getBlockState(BUTTON),s.overworld().getBlockState(HIDDEN))),"Cleanup leaves blocks unchanged");
+            check(p.getMainHandItem().is(Items.DIAMOND)&&p.getMainHandItem().getCount()==12,"Cleanup leaves held items unchanged");
+            RemoteService.forget(p.getUUID());RemoteService.removeMissing(p);
+            check(data.owned(p.getUUID()).size()==6,"Repeated cleanup with no missing targets preserves receivers");
+        });
+        c.runOnClient(mc->{
+            var button=mc.gui.screen().children().stream().filter(Button.class::isInstance).map(Button.class::cast)
+                    .filter(b->b.getMessage().getString().equals(RemoteScreen.tr("remove_missing").getString())).findFirst().orElseThrow();
+            check(!button.active,"Cleanup is disabled with no missing receivers");
+        });
+        c.takeScreenshot("cleanup-complete-small-ko");
+        world.getServer().runOnServer(s->{
+            var p=s.getPlayerList().getPlayers().getFirst();var data=ReceiverData.get(s);
+            for(var receiver:fixtures)data.remove(receiver.id());
+            s.getLevel(net.minecraft.world.level.Level.NETHER).setChunkForced(0,0,false);RemoteService.sync(p,"");
+        });
+        c.waitFor(mc->RemoteClient.entries().size()==2);c.getInput().resizeWindow(1000,700);c.waitTicks(3);
+    }
     private static UUID removeAllReceivers(ClientGameTestContext c,TestSingleplayerContext world){
         UUID foreignId=UUID.randomUUID();
         world.getServer().runOnServer(s->{
@@ -331,10 +391,8 @@ public final class RemoteGameTest implements FabricClientGameTest {
             world.getServer().runCommand("setblock 2 81 0 minecraft:air");world.getServer().runCommand("setblock 2 81 0 minecraft:stone_button[face=floor]");c.waitTicks(15);
             c.waitFor(mc->RemoteClient.entries().stream().filter(e->e.id().equals(buttonId)).findFirst().orElseThrow().status().equals("missing"));
             c.runOnClient(mc->check(!RemoteClient.extractMarkers().contains(new net.minecraft.world.phys.AABB(BUTTON).inflate(.002)),"Replaced receiver blocks lose their cube marker"));
-            world.getServer().runOnServer(s->{var p=s.getPlayerList().getPlayers().getFirst();check(ReceiverData.get(s).get(buttonId).lost(),"Replaced block does not relink");
-                RemoteService.forget(p.getUUID());RemoteService.request(p,new RemotePayloads.Request(RemotePayloads.Action.REMOVE,buttonId,""));
-                check(p.getMainHandItem().getCount()==12,"Itemless removal never changes inventory");});
-            c.waitFor(mc->RemoteClient.entries().size()==2);c.clickScreenButton("gui.done");
+            world.getServer().runOnServer(s->check(ReceiverData.get(s).get(buttonId).lost(),"Replaced block does not relink"));
+            cleanMissingReceivers(c,world,buttonId);c.clickScreenButton("gui.done");
         }
         UUID foreignAfterClear;
         try(var world=save.open()){

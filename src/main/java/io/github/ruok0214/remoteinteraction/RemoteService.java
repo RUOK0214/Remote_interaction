@@ -4,7 +4,10 @@ import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -74,12 +77,18 @@ public final class RemoteService {
     private static void tell(ServerPlayer player, String key) {
         player.sendOverlayMessage(Component.translatable("remote_interaction.message." + key));
     }
+    private static boolean missing(MinecraftServer server, Receiver r) {
+        if (r.lost()) return true;
+        var level = server.getLevel(ResourceKey.create(Registries.DIMENSION, r.dimension()));
+        // An unavailable dimension or unloaded chunk is unknown, not a broken connection.
+        return level != null && level.hasChunkAt(r.pos())
+                && !BuiltInRegistries.BLOCK.getKey(level.getBlockState(r.pos()).getBlock()).equals(r.block());
+    }
     public static String status(ServerPlayer player, Receiver r) {
-        if (r.lost()) return "missing";
+        if (missing(player.level().getServer(), r)) return "missing";
         if (!player.level().dimension().identifier().equals(r.dimension())) return "dimension";
         var level = player.level();
         if (!level.hasChunkAt(r.pos())) return "unloaded";
-        if (!BuiltInRegistries.BLOCK.getKey(level.getBlockState(r.pos()).getBlock()).equals(r.block())) return "missing";
         if (!player.isAlive() || player.isSpectator() || !player.mayBuild() || !player.mayInteract(level, r.pos())
                 || !level.mayInteract(player, r.pos()) || !level.getWorldBorder().isWithinBounds(r.pos())) return "denied";
         return "ready";
@@ -135,6 +144,19 @@ public final class RemoteService {
         if (!editable(player)) { sync(player, "denied"); return; }
         ReceiverData.get(player.level().getServer()).removeOwned(player.getUUID());
         sync(player, "all_removed");
+    }
+    public static void removeMissing(ServerPlayer player) {
+        if (!allow(player, LAST_EDIT, 1)) return;
+        if (!editable(player)) { sync(player, "denied"); return; }
+        var server = player.level().getServer();
+        var data = ReceiverData.get(server);
+        boolean removed = false;
+        // Recheck ownership and the target on the server when confirmation arrives.
+        for (var receiver : data.owned(player.getUUID())) {
+            if (!missing(server, receiver)) continue;
+            data.remove(receiver.id()); removed = true;
+        }
+        sync(player, removed ? "missing_removed" : "no_missing");
     }
     public static void activateSlot(ServerPlayer player, int slot) {
         if (!allow(player, LAST_ACTION, 4)) return;

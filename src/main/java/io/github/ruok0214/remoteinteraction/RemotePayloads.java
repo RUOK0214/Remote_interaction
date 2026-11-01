@@ -32,6 +32,11 @@ public final class RemotePayloads {
         public static final StreamCodec<RegistryFriendlyByteBuf, RemoveAll> CODEC = StreamCodec.unit(new RemoveAll());
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
+    public record RemoveMissing() implements CustomPacketPayload {
+        public static final Type<RemoveMissing> TYPE = new Type<>(RemoteInteraction.id("remove_missing"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, RemoveMissing> CODEC = StreamCodec.unit(new RemoveMissing());
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
     public record SetSlot(UUID id, int slot, boolean enabled) implements CustomPacketPayload {
         public static final Type<SetSlot> TYPE = new Type<>(RemoteInteraction.id("set_slot"));
         public static final StreamCodec<RegistryFriendlyByteBuf, SetSlot> CODEC = StreamCodec.of(

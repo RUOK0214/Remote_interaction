@@ -28,7 +28,7 @@ public final class RemoteScreen extends Screen {
         panelWidth = Math.min(500, width - 16); panelHeight = height - 16;
         left = (width - panelWidth) / 2; top = 8;
         rows = Math.max(1, (panelHeight - 190) / 42);
-        search = addRenderableWidget(new EditBox(font, left + 10, top + 44, panelWidth - 20, 20, tr("search")));
+        search = addRenderableWidget(new EditBox(font, left + 10, top + 44, panelWidth - 144, 20, tr("search")));
         search.setMaxLength(64); search.setValue(query); search.setHint(tr("search"));
         search.setResponder(value -> { query = value; page = 0; rebuildRows(); });
         rebuildRows(); RemoteClient.send(RemotePayloads.Request.list());
@@ -43,6 +43,13 @@ public final class RemoteScreen extends Screen {
     }
     private void rebuildRows() {
         for (var child : List.copyOf(children())) if (child != search) removeWidget(child);
+        var cleanup = addRenderableWidget(Button.builder(tr("remove_missing"), b -> minecraft.gui.setScreen(new ConfirmScreen(confirmed -> {
+            minecraft.gui.setScreen(this);
+            if (confirmed && RemoteClient.canRemoveMissing()) RemoteClient.send(new RemotePayloads.RemoveMissing());
+        }, tr("remove_missing_title"), tr("remove_missing_confirm", RemoteClient.missingCount()))))
+                .bounds(left + panelWidth - 130, top + 44, 120, 20).build());
+        cleanup.active = RemoteClient.canRemoveMissing() && RemoteClient.missingCount() > 0;
+        cleanup.setTooltip(Tooltip.create(tr("remove_missing_hint")));
         var all = filtered();
         int pages = Math.max(1, (all.size() + rows - 1) / rows);
         page = Math.clamp(page, 0, pages - 1);
