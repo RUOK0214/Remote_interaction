@@ -13,6 +13,7 @@ public final class RemoteInteraction implements ModInitializer {
         PayloadTypeRegistry.serverboundPlay().register(RemotePayloads.RemoveAll.TYPE, RemotePayloads.RemoveAll.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(RemotePayloads.RemoveMissing.TYPE, RemotePayloads.RemoveMissing.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(RemotePayloads.SetSlot.TYPE, RemotePayloads.SetSlot.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(RemotePayloads.SetAutoAssign.TYPE, RemotePayloads.SetAutoAssign.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(RemotePayloads.ActivateSlot.TYPE, RemotePayloads.ActivateSlot.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(RemotePayloads.Snapshot.TYPE, RemotePayloads.Snapshot.CODEC);
         ServerPlayNetworking.registerGlobalReceiver(RemotePayloads.Request.TYPE, (payload, context) ->
@@ -21,6 +22,7 @@ public final class RemoteInteraction implements ModInitializer {
         ServerPlayNetworking.registerGlobalReceiver(RemotePayloads.RemoveAll.TYPE, (payload, context) -> RemoteService.removeAll(context.player()));
         ServerPlayNetworking.registerGlobalReceiver(RemotePayloads.RemoveMissing.TYPE, (payload, context) -> RemoteService.removeMissing(context.player()));
         ServerPlayNetworking.registerGlobalReceiver(RemotePayloads.SetSlot.TYPE, (payload, context) -> RemoteService.setSlot(context.player(), payload));
+        ServerPlayNetworking.registerGlobalReceiver(RemotePayloads.SetAutoAssign.TYPE, (payload, context) -> RemoteService.setAutoAssign(context.player(), payload.enabled()));
         ServerPlayNetworking.registerGlobalReceiver(RemotePayloads.ActivateSlot.TYPE, (payload, context) -> RemoteService.activateSlot(context.player(), payload.slot()));
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> RemoteService.sync(handler.player, ""));
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> RemoteService.forget(handler.player.getUUID()));

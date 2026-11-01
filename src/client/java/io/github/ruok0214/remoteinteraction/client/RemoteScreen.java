@@ -76,7 +76,7 @@ public final class RemoteScreen extends Screen {
         var attach=addRenderableWidget(Button.builder(tr("attach"),b->RemoteClient.startPlacing()).bounds(left+10,tools,toolWidth,20).build());
         attach.active=RemoteClient.available();
         addRenderableWidget(Button.builder(tr("keys.title"),b->minecraft.gui.setScreen(new KeySettingsScreen(this))).bounds(left+14+toolWidth,tools,toolWidth,20).build());
-        addRenderableWidget(Button.builder(tr("slots.title"),b->minecraft.gui.setScreen(new QuickSettingsScreen(this))).bounds(left+18+2*toolWidth,tools,toolWidth,20).build());
+        addRenderableWidget(Button.builder(tr("slots.title"),b->minecraft.gui.setScreen(new QuickLayoutScreen(this))).bounds(left+18+2*toolWidth,tools,toolWidth,20).build());
         addRenderableWidget(Button.builder(tr("markers.title"),b->minecraft.gui.setScreen(new MarkerSettingsScreen(this))).bounds(left+22+3*toolWidth,tools,toolWidth,20).build());
         int footer = top + panelHeight - 28, gap = 4, w = (panelWidth - 36) / 5;
         var rename = addRenderableWidget(Button.builder(tr("rename"), b -> minecraft.gui.setScreen(new RenameScreen(this, selection())))

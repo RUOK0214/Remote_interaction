@@ -50,10 +50,16 @@ public final class RemotePayloads {
                 (b, v) -> b.writeVarInt(v.slot), b -> new ActivateSlot(b.readVarInt()));
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
-    public record Snapshot(List<Entry> entries, String message) implements CustomPacketPayload {
-        public static final Type<Snapshot> TYPE = new Type<>(RemoteInteraction.id("snapshot_v3"));
+    public record SetAutoAssign(boolean enabled) implements CustomPacketPayload {
+        public static final Type<SetAutoAssign> TYPE = new Type<>(RemoteInteraction.id("set_auto_assign"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, SetAutoAssign> CODEC = StreamCodec.of(
+                (b, v) -> b.writeBoolean(v.enabled), b -> new SetAutoAssign(b.readBoolean()));
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+    public record Snapshot(List<Entry> entries, String message, boolean autoAssign) implements CustomPacketPayload {
+        public static final Type<Snapshot> TYPE = new Type<>(RemoteInteraction.id("snapshot_v4"));
         public static final StreamCodec<RegistryFriendlyByteBuf, Snapshot> CODEC = StreamCodec.of((b, v) -> {
-            b.writeUtf(v.message, 64); b.writeVarInt(v.entries.size());
+            b.writeUtf(v.message, 64); b.writeBoolean(v.autoAssign); b.writeVarInt(v.entries.size());
             for (var e : v.entries) {
                 b.writeUUID(e.id); b.writeIdentifier(e.dimension); b.writeBlockPos(e.pos); b.writeEnum(e.face);
                 b.writeIdentifier(e.block); b.writeUtf(e.name, Receiver.MAX_NAME);
@@ -62,12 +68,13 @@ public final class RemotePayloads {
             }
         }, b -> {
             String message = b.readUtf(64);
+            boolean autoAssign = b.readBoolean();
             int size = b.readVarInt();
             if (size < 0 || size > ReceiverData.MAX_PER_PLAYER) throw new IllegalArgumentException("Invalid receiver count");
             var entries = new ArrayList<Entry>(size);
             for (int i = 0; i < size; i++) entries.add(new Entry(b.readUUID(), b.readIdentifier(), b.readBlockPos(),
                     b.readEnum(Direction.class), b.readIdentifier(), b.readUtf(Receiver.MAX_NAME), b.readUtf(64), b.readUtf(128), readSlots(b)));
-            return new Snapshot(List.copyOf(entries), message);
+            return new Snapshot(List.copyOf(entries), message, autoAssign);
         });
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }

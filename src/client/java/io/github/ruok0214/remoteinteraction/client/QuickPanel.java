@@ -5,15 +5,18 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import java.util.*;
 
-/** Shared by the live panel and the non-interactive layout preview. */
+/** Shared receiver rendering for the live panel and layout editor. */
 final class QuickPanel {
     record Group(int slot,List<RemotePayloads.Entry> members){int height(){return members.size()*22+8;}}
     static List<Group> groups(){
+        return groups(false);
+    }
+    static List<Group> groups(boolean includeEmpty){
         var groups=new ArrayList<Group>();
         for(int slot=0;slot<Receiver.SLOT_COUNT;slot++){
             final int index=slot;
             var members=RemoteClient.entries().stream().filter(e->e.slots().contains(index)).toList();
-            if(!members.isEmpty())groups.add(new Group(slot,members));
+            if(includeEmpty||!members.isEmpty())groups.add(new Group(slot,members));
         }
         return groups;
     }
