@@ -1,4 +1,6 @@
 {
+  "modmenu.summaryTranslation.remote_interaction": "수신기를 붙인 블록을 15개 빠른 슬롯으로 원격 조작합니다.",
+  "modmenu.descriptionTranslation.remote_interaction": "버튼·레버·문 등에 아이템 없이 수신기를 붙여 원격으로 조작하세요.\n\n15개 빠른 슬롯, 새 수신기 자동 배정, 복합 단축키를 지원합니다. 빠른 창의 위치·크기와 수신기 표시의 색·투명도·선 두께를 조절할 수 있습니다.\n\n시작: /ri 또는 이 화면의 설정 버튼. 단축키는 기본 미지정입니다.\n\n멀티플레이는 서버와 클라이언트 모두 설치해야 합니다. 원격 작동은 같은 차원의 로드된 청크에서 가능합니다.",
   "remote_interaction.attach": "수신기 붙이기",
   "remote_interaction.place_hint": "우클릭: 부착 / 내 수신기 제거 · Esc 또는 붙이기 키: 취소",
   "remote_interaction.place_cancelled": "수신기 붙이기를 취소했습니다.",
