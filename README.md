@@ -6,9 +6,10 @@
 
 - Minecraft Java Edition **26.2**, Java **25 이상**
 - Fabric Loader **0.19.5 이상**, Fabric API **0.160.0+26.2**
-- [GitHub Releases](https://github.com/RUOK0214/Remote_interaction/releases/latest)에서 `remote-interaction-0.8.0.jar`를 받아 Fabric API와 함께 `mods` 폴더에 넣으세요.
+- [GitHub Releases](https://github.com/RUOK0214/Remote_interaction/releases/latest)에서 `remote-interaction-0.9.0.jar`를 받아 Fabric API와 함께 `mods` 폴더에 넣으세요.
 - 멀티플레이는 **서버와 클라이언트 모두 같은 버전**을 설치해야 합니다. 싱글플레이는 게임에 설치하면 됩니다.
 - Mod Menu는 선택 사항입니다. 모드 목록의 설정 버튼으로 모드 창을 열 수 있습니다.
+- Mod Menu 목록에는 수신기·무선 신호 아이콘과 한국어·영어 소개가 표시됩니다. 설명에서 주요 기능, `/ri` 사용법과 서버 설치 조건을 확인할 수 있습니다.
 
 `-sources.jar`는 설치용이 아닙니다. 이전 Remote Interaction JAR와 새 JAR를 함께 넣지 마세요.
 다른 Minecraft 버전, Forge/NeoForge, Bedrock은 지원하지 않습니다.

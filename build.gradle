@@ -15,6 +15,7 @@ dependencies {
     implementation "net.fabricmc:fabric-loader:${project.loader_version}"
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
     clientCompileOnly("com.terraformersmc:modmenu:${project.modmenu_version}") { transitive = false }
+    clientRuntimeOnly("com.terraformersmc:modmenu:${project.modmenu_version}") { transitive = false }
 }
 processResources {
     inputs.property 'version', project.version

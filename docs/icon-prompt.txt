@@ -1,0 +1,4 @@
+Remote Interaction icon, 0.9.0
+Generated with the built-in imagegen tool. The generated original is preserved; the bundled icon is downscaled to 256 x 256 PNG for Mod Menu.
+
+Use case: stylized-concept. Asset type: square PNG icon for the Minecraft Fabric mod Remote Interaction, displayed in Mod Menu at 32–64 pixels. Create a polished, simple voxel/pixel-art emblem: a single chunky gray isometric block with a small cyan receiver attached to its front and two bold stepped cyan wireless signal arcs above it, expressing remote interaction. A tiny warm amber button on the block provides one accent. Use the mod's existing cyan/teal and dark blue-gray visual language. Solid deep navy square background, generous clean margins, strong silhouette, crisp edges, minimal details, readable when small. One icon only, no text, no letters, no watermark, no Minecraft logo, no mockup, no border or UI around it. Aim for a 256 by 256 pixel game icon.
