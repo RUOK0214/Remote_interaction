@@ -513,5 +513,6 @@ public final class RemoteGameTest implements FabricClientGameTest {
             world.getConnection().waitForChunksDownload();c.runOnClient(mc->check(RemoteClient.entries().isEmpty(),"Another world does not inherit receivers or slots"));
         }
         automaticAssignments(c);
+        LecternGameTest.run(c);
     }
 }

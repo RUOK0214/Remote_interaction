@@ -3,6 +3,7 @@ package io.github.ruok0214.remoteinteraction.client;
 import io.github.ruok0214.remoteinteraction.*;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
@@ -20,10 +21,11 @@ public final class QuickScreen extends Screen {
         int y=panel.y()-scroll;
         for(var group:groups){
             var button=addRenderableWidget(new SlotButton(panel.x(),y,panel.width(),group,b->{
-                if(cooldown>0)return;
+                if(cooldown>0||group.members().stream().noneMatch(RemoteScreen::canActivate))return;
                 RemoteClient.send(new RemotePayloads.ActivateSlot(group.slot()));cooldown=4;updated();
             }));
-            button.active=cooldown==0&&RemoteClient.available()&&group.members().stream().anyMatch(e->e.status().equals("ready"));
+            button.active=cooldown==0&&group.members().stream().anyMatch(e->RemoteScreen.canActivate(e)||RemoteScreen.canTurnPage(e,-1));
+            if(group.members().stream().anyMatch(RemoteScreen::isLectern))button.setTooltip(Tooltip.create(RemoteScreen.tr("book.quick_hint")));
             y+=group.height()+6;
         }
     }
@@ -34,7 +36,18 @@ public final class QuickScreen extends Screen {
     @Override public boolean isPauseScreen(){return false;}
     @Override public void onClose(){minecraft.gui.setScreen(null);}
     @Override public void extractBackground(GuiGraphicsExtractor g,int x,int y,float dt){}
-    @Override public boolean mouseClicked(MouseButtonEvent e,boolean twice){return panel.contains(e.x(),e.y())&&super.mouseClicked(e,twice);}
+    @Override public boolean mouseClicked(MouseButtonEvent e,boolean twice){
+        if(!panel.contains(e.x(),e.y()))return false;
+        if(e.button()==1){
+            for(var child:children())if(child instanceof SlotButton button&&button.isMouseOver(e.x(),e.y())){
+                if(cooldown==0&&button.group.members().stream().anyMatch(member->RemoteScreen.canTurnPage(member,-1))){
+                    RemoteClient.send(new RemotePayloads.PreviousSlotPage(button.group.slot()));cooldown=4;updated();
+                }
+                return true;
+            }
+        }
+        return super.mouseClicked(e,twice);
+    }
     @Override public boolean mouseScrolled(double x,double y,double horizontal,double vertical){
         if(!panel.contains(x,y))return false;
         scroll=Math.clamp(scroll-(int)(vertical*30),0,Math.max(0,totalHeight-panel.height()));updated();return true;
