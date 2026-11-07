@@ -15,6 +15,8 @@ public final class RemoteInteraction implements ModInitializer {
         PayloadTypeRegistry.serverboundPlay().register(RemotePayloads.SetSlot.TYPE, RemotePayloads.SetSlot.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(RemotePayloads.SetAutoAssign.TYPE, RemotePayloads.SetAutoAssign.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(RemotePayloads.ActivateSlot.TYPE, RemotePayloads.ActivateSlot.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(RemotePayloads.TurnPage.TYPE, RemotePayloads.TurnPage.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(RemotePayloads.PreviousSlotPage.TYPE, RemotePayloads.PreviousSlotPage.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(RemotePayloads.Snapshot.TYPE, RemotePayloads.Snapshot.CODEC);
         ServerPlayNetworking.registerGlobalReceiver(RemotePayloads.Request.TYPE, (payload, context) ->
                 RemoteService.request(context.player(), payload));
@@ -24,6 +26,8 @@ public final class RemoteInteraction implements ModInitializer {
         ServerPlayNetworking.registerGlobalReceiver(RemotePayloads.SetSlot.TYPE, (payload, context) -> RemoteService.setSlot(context.player(), payload));
         ServerPlayNetworking.registerGlobalReceiver(RemotePayloads.SetAutoAssign.TYPE, (payload, context) -> RemoteService.setAutoAssign(context.player(), payload.enabled()));
         ServerPlayNetworking.registerGlobalReceiver(RemotePayloads.ActivateSlot.TYPE, (payload, context) -> RemoteService.activateSlot(context.player(), payload.slot()));
+        ServerPlayNetworking.registerGlobalReceiver(RemotePayloads.TurnPage.TYPE, (payload, context) -> RemoteService.turnPage(context.player(), payload));
+        ServerPlayNetworking.registerGlobalReceiver(RemotePayloads.PreviousSlotPage.TYPE, (payload, context) -> RemoteService.previousSlotPage(context.player(), payload.slot()));
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> RemoteService.sync(handler.player, ""));
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> RemoteService.forget(handler.player.getUUID()));
     }

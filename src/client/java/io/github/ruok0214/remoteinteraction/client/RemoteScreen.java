@@ -6,6 +6,7 @@ import net.minecraft.client.gui.components.*;
 import net.minecraft.client.gui.screens.*;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.level.block.LecternBlock;
 import java.util.*;
 
 public final class RemoteScreen extends Screen {
@@ -22,7 +23,20 @@ public final class RemoteScreen extends Screen {
     }
     public static Component stateLabel(RemotePayloads.Entry entry) {
         if (!entry.status().equals("ready")) return tr("status."+entry.status());
+        var book = BookPage.parse(entry.state());
+        if (book != null) return tr("state.book_page", book.current(), book.total());
         return entry.state().startsWith("note_") ? tr("state.note",entry.state().substring(5)) : tr("state."+entry.state());
+    }
+    public static boolean isLectern(RemotePayloads.Entry entry) {
+        return BuiltInRegistries.BLOCK.getValue(entry.block()) instanceof LecternBlock;
+    }
+    public static boolean canTurnPage(RemotePayloads.Entry entry, int direction) {
+        var book = BookPage.parse(entry.state());
+        return RemoteClient.canTurnPages() && entry.status().equals("ready") && isLectern(entry)
+                && book != null && book.canTurn(direction);
+    }
+    public static boolean canActivate(RemotePayloads.Entry entry) {
+        return RemoteClient.available() && entry.status().equals("ready") && (!isLectern(entry) || canTurnPage(entry, 1));
     }
     @Override protected void init() {
         panelWidth = Math.min(500, width - 16); panelHeight = height - 16;
@@ -60,11 +74,21 @@ public final class RemoteScreen extends Screen {
                     b -> { selected = entry.id(); rebuildRows(); }).bounds(left + 10, y, panelWidth - 104, 20).build();
             select.setTooltip(Tooltip.create(Component.literal(label(entry).getString() + "\n" + entry.dimension() + "  " + entry.pos().toShortString())));
             addRenderableWidget(select);
+            if (isLectern(entry)) {
+                for (int direction : new int[]{-1, 1}) {
+                    var turn = addRenderableWidget(Button.builder(tr(direction < 0 ? "book.previous" : "book.next"), b -> {
+                        RemoteClient.send(new RemotePayloads.TurnPage(entry.id(), direction)); b.active = false;
+                    }).bounds(left + panelWidth - 88 + (direction > 0 ? 41 : 0), y, 37, 20).build());
+                    turn.active = canTurnPage(entry, direction);
+                    turn.setTooltip(Tooltip.create(tr(direction < 0 ? "book.previous_hint" : "book.next_hint")));
+                }
+                continue;
+            }
             var activate = addRenderableWidget(Button.builder(tr("activate"), b -> {
                 RemoteClient.send(new RemotePayloads.Request(RemotePayloads.Action.ACTIVATE, entry.id(), ""));
                 b.active = false;
             }).bounds(left + panelWidth - 88, y, 78, 20).build());
-            activate.active = RemoteClient.available() && entry.status().equals("ready");
+            activate.active = canActivate(entry);
             activate.setTooltip(Tooltip.create(tr("status." + entry.status())));
         }
         int nav = top + panelHeight - 108;
@@ -113,8 +137,7 @@ public final class RemoteScreen extends Screen {
         for (int i = 0; i < visible.size(); i++) {
             var entry = visible.get(i);
             String detail = entry.pos().toShortString() + "  ·  " + tr("status." + entry.status()).getString();
-            if (!entry.state().isEmpty()) detail += "  ·  " + (entry.state().startsWith("note_")
-                    ? tr("state.note", entry.state().substring(5)) : tr("state." + entry.state())).getString();
+            if (!entry.state().isEmpty()) detail += "  ·  " + stateLabel(entry).getString();
             g.text(font, font.plainSubstrByWidth(detail, panelWidth-24), left+12, top+98+i*42,
                     entry.status().equals("ready") ? 0xFF7FE5C7 : 0xFFDBAE7E);
         }

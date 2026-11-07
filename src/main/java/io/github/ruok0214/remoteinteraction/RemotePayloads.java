@@ -56,6 +56,19 @@ public final class RemotePayloads {
                 (b, v) -> b.writeBoolean(v.enabled), b -> new SetAutoAssign(b.readBoolean()));
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
+    public record TurnPage(UUID id, int direction) implements CustomPacketPayload {
+        public static final Type<TurnPage> TYPE = new Type<>(RemoteInteraction.id("turn_page"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, TurnPage> CODEC = StreamCodec.of(
+                (b, v) -> { b.writeUUID(v.id); b.writeVarInt(v.direction); },
+                b -> new TurnPage(b.readUUID(), b.readVarInt()));
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+    public record PreviousSlotPage(int slot) implements CustomPacketPayload {
+        public static final Type<PreviousSlotPage> TYPE = new Type<>(RemoteInteraction.id("previous_slot_page"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, PreviousSlotPage> CODEC = StreamCodec.of(
+                (b, v) -> b.writeVarInt(v.slot), b -> new PreviousSlotPage(b.readVarInt()));
+        @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
     public record Snapshot(List<Entry> entries, String message, boolean autoAssign) implements CustomPacketPayload {
         public static final Type<Snapshot> TYPE = new Type<>(RemoteInteraction.id("snapshot_v4"));
         public static final StreamCodec<RegistryFriendlyByteBuf, Snapshot> CODEC = StreamCodec.of((b, v) -> {
